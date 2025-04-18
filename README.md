@@ -12,44 +12,10 @@ CyberDiag est un outil Python permettant d'effectuer un diagnostic rapide sur un
 - 📄 Export des résultats en **JSON** et **PDF**
 
 ## Installation
-1. Installer les dépendances requises :
-   ```
-   sudo apt update && sudo apt install -y python3 python3-pip python3-venv python3-full nmap git dnsutils 
-   ```
-   
-2. Clonez le dépôt :
-   ```bash
-   sudo git clone https://github.com/cyber-arthur/cyber_diag.git
-   cd cyber_diag
-   sudo chown -R $USER:$USER /home/$USER/cyber_diag
-   ```
-3. Installer the Harvester :
-   ```
-   sudo git clone https://github.com/laramies/theHarvester.git
-   ```
-   
-3. Démarrer un environnement virtuel :
-   ```
-   python3 -m venv venv
-   source venv/bin/activate
-   cd theHarvester
-   pip install -r requirements/base.txt
-   cd ..
-   ```
-
-4. Installez les dépendances :
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-5. Configurez votre fichier `.env` :
-   ```
-   sudo vi .env
-   ```
-   ```env
-   SHODAN_API_KEY=your_shodan_api_key
-   HUNTER_API_KEY=your_hunter_api_key
-   ```
+```bash
+chmod +x install.sh
+./install.sh
+```
 
 ## Utilisation
 
@@ -58,7 +24,7 @@ python main.py --nom entreprise.fr --siren 123456789 --ips 192.0.2.1 203.0.113.5
 ```
 
 ## Résultats
-
+Un dossier `resultats` est crée où se trouvent 2 fichiers : 
 - `diag_<SIREN>.json` : Résultat complet au format JSON
 - `diag_<SIREN>.pdf` : Rapport au format PDF 
 
