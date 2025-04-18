@@ -84,6 +84,8 @@ def generate_ports_chart(ips_data, output_dir):
     return None
 
 def export_pdf(resultats, siren, output_dir):
+    from utils.osint_advanced import check_greynoise, check_virustotal
+
     pdf = PDF()
     pdf.set_title(f"Rapport - {resultats.get('entreprise', 'N/A')}")
     pdf.add_page()
@@ -106,6 +108,7 @@ def export_pdf(resultats, siren, output_dir):
         pdf.subsection_title(f"Adresse IP : {ip}")
         pdf.section_text("Nmap:")
         pdf.section_text(ip_data.get("nmap", "Aucune donnée"))
+
         pdf.section_text("Shodan:")
         shodan = ip_data.get("shodan", {})
         if isinstance(shodan, dict):
@@ -114,6 +117,12 @@ def export_pdf(resultats, siren, output_dir):
                     pdf.section_text(f"- {sk}: {sv}")
         else:
             pdf.section_text(f"Erreur Shodan: {shodan}")
+
+        # ➕ GreyNoise enrichment
+        greynoise_data = check_greynoise(ip)
+        pdf.section_text("GreyNoise:")
+        for gk, gv in greynoise_data.items():
+            pdf.section_text(f"- {gk}: {gv}")
 
     # ➕ Ajout du graphique Nmap
     chart_path = generate_ports_chart(ips, output_dir)
@@ -125,6 +134,11 @@ def export_pdf(resultats, siren, output_dir):
     osint_raw = resultats["resultats"].get("osint", {}).get("texte", "")
     cleaned_osint = clean_osint_text(osint_raw)
     pdf.section_text(cleaned_osint[:5000])
+
+    pdf.section_title("Analyse VirusTotal (Domaine)")
+    vt_data = check_virustotal(entreprise)
+    for k, v in vt_data.items():
+        pdf.section_text(f"- {k}: {v}")
 
     pdf.section_title("Emails collectés (Hunter.io)")
     emails = resultats["resultats"].get("emails", [])
@@ -150,7 +164,7 @@ def export_pdf(resultats, siren, output_dir):
 
     pdf.section_title("Synthèse et Recommandations")
     pdf.section_text("Ce rapport fournit un aperçu de la posture de sécurité externe de l'entreprise. Il est recommandé :")
-    pdf.section_text("- De corriger toute configuration exposée détectée via Shodan ou Nmap.")
+    pdf.section_text("- De corriger toute configuration exposée détectée via Shodan, GreyNoise ou Nmap.")
     pdf.section_text("- D’analyser les emails identifiés et les points de fuite d’informations.")
     pdf.section_text("- D’utiliser ces informations pour alimenter un plan d’actions cybersécurité.")
 
