@@ -9,7 +9,7 @@ REQUIREMENTS="requirements.txt"
 
 
 # --- Étape 1 : Installer theHarvester ---
-cd $PROJECT_DIR
+cd ./$PROJECT_DIR/
 if [ ! -d "../$HARVESTER_DIR" ]; then
     echo "⬇️ Clonage de theHarvester..."
     git clone https://github.com/laramies/theHarvester.git ../$HARVESTER_DIR
