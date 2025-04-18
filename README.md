@@ -24,8 +24,8 @@ sudo chown -R $USER:$USER $(pwd)
 
 ## Installation de cyber_diag
 ```bash
-chmod +x install.sh
-./install.sh
+chmod +x cyber_diag.sh
+./cyber_diag.sh
 ```
 
 ## Utilisation
