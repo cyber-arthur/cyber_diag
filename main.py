@@ -2,6 +2,7 @@ import argparse
 import json
 from dotenv import load_dotenv
 import os
+from pathlib import Path
 
 from utils.dns_tools import dns_lookup
 from utils.hunter import hunter_search
@@ -13,6 +14,9 @@ load_dotenv()
 
 SHODAN_API_KEY = os.getenv("SHODAN_API_KEY")
 HUNTER_API_KEY = os.getenv("HUNTER_API_KEY")
+
+OUTPUT_DIR = "rapports"
+Path(OUTPUT_DIR).mkdir(exist_ok=True)
 
 def cyber_diag(nom_entreprise: str, siren: str, ip_list: list):
     print(f"📡 Diagnostic pour {nom_entreprise} ({siren})...")
@@ -34,12 +38,13 @@ def cyber_diag(nom_entreprise: str, siren: str, ip_list: list):
             "shodan": shodan_scan(ip, SHODAN_API_KEY)
         }
 
-    output_file = f"diag_{siren}.json"
-    with open(output_file, "w", encoding="utf-8") as f:
+    json_path = os.path.join(OUTPUT_DIR, f"diag_{siren}.json")
+    with open(json_path, "w", encoding="utf-8") as f:
         json.dump(resultats, f, indent=2, ensure_ascii=False)
 
-    export_pdf(resultats, siren)
-    print(f"\n✅ Rapport JSON généré : {output_file}")
+    export_pdf(resultats, siren, OUTPUT_DIR)
+
+    print(f"✅ Rapport JSON généré : {json_path}")
     return resultats
 
 if __name__ == "__main__":
