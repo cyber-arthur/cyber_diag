@@ -11,27 +11,37 @@ CyberDiag est un outil Python permettant d'effectuer un diagnostic rapide sur un
 - 🧾 Enrichissement entreprise via **API SIRENE**
 - 📄 Export des résultats en **JSON** et **PDF**
 
-## Prérequis externes
-`theHarvester` installé dans `~/theHarvester/`
-```
-git clone https://github.com/laramies/theHarvester.git
-cd ~/theHarvester/
-pip install -r requirements/base.txt
-```
 ## Installation
-
-1. Clonez le dépôt :
+1. Installer les dépendances requises :
+   ```
+   sudo apt update && sudo apt install -y python3 python3-pip python3-venv nmap git dnsutils
+   ```
+   
+2. Clonez le dépôt :
    ```bash
    git clone git@github.com:cyber-arthur/cyber_diag.git
    cd cyber_diag
    ```
+3. Installer the Harvester :
+   ```
+   git clone https://github.com/laramies/theHarvester.git
+   ```
+   
+3. Démarrer un environnement virtuel :
+   ```
+   python3 -m venv venv
+   source venv/bin/activate
+   cd theHarvester
+   pip install -r requirements/base.txt
+   cd ..
+   ```
 
-2. Installez les dépendances :
+4. Installez les dépendances :
    ```bash
    pip install -r requirements.txt
    ```
 
-3. Configurez votre fichier `.env` :
+5. Configurez votre fichier `.env` :
    ```env
    SHODAN_API_KEY=your_shodan_api_key
    HUNTER_API_KEY=your_hunter_api_key
