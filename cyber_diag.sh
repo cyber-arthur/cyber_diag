@@ -12,10 +12,6 @@ REQUIREMENTS="requirements.txt"
 if [ ! -d "../$HARVESTER_DIR" ]; then
     echo "⬇️ Clonage de theHarvester..."
     git clone https://github.com/laramies/theHarvester.git ../$HARVESTER_DIR
-    cd $HARVESTER_DIR
-    echo "📚 Installation des dépendances de theHarvester..."
-    pip install -r requirements/base.txt
-    cd ..
 else
     echo "✅ theHarvester déjà présent."
 fi
@@ -29,6 +25,10 @@ source $VENV_DIR/bin/activate
 
 # --- Étape 3 : Dépendances Python ---
 echo "⬆️ Installation des dépendances Python..."
+cd $HARVESTER_DIR/
+echo "📚 Installation des dépendances de theHarvester..."
+pip install -r requirements/base.txt
+cd ..
 pip install --upgrade pip
 pip install -r $REQUIREMENTS
 
