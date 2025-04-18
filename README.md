@@ -42,6 +42,9 @@ CyberDiag est un outil Python permettant d'effectuer un diagnostic rapide sur un
    ```
 
 5. Configurez votre fichier `.env` :
+   ```
+   sudo vi .env
+   ```
    ```env
    SHODAN_API_KEY=your_shodan_api_key
    HUNTER_API_KEY=your_hunter_api_key
