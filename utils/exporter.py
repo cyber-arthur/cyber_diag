@@ -36,23 +36,6 @@ class PDF(FPDF):
         self.multi_cell(0, 5, safe_text)
         self.ln(1)
 
-    def add_toc(self, titles):
-        self.add_page()
-        self.set_font("Arial", "B", 14)
-        self.cell(0, 10, "Table des matières", 0, 1, "C")
-        self.set_font("Arial", "", 10)
-        for title in titles:
-            safe_title = title.encode('latin-1', 'replace').decode('latin-1')
-            self.cell(0, 8, f"- {safe_title}", 0, 1)
-        self.ln(5)
-
-    def safe_output(self, name):
-        try:
-            self.output(name)
-        except UnicodeEncodeError as e:
-            print("[Erreur PDF] Caractère non compatible latin-1 détecté :", e)
-            raise
-
 def clean_osint_text(text):
     lines = text.splitlines()
     clean_lines = []
@@ -67,3 +50,73 @@ def clean_osint_text(text):
             continue
         clean_lines.append(line.strip())
     return "\n".join(clean_lines)
+
+def export_pdf(resultats, siren, output_dir):
+    pdf = PDF()
+    pdf.set_title(f"Rapport - {resultats.get('entreprise', 'N/A')}")
+    pdf.add_page()
+
+    entreprise = resultats.get('entreprise', 'N/A')
+    pdf.section_title(f"Informations générales - {entreprise} ({siren})")
+    siren_data = resultats["resultats"].get("siren_data", {})
+    for k, v in siren_data.items():
+        pdf.section_text(f"{k}: {v}")
+
+    pdf.section_title("Résultat DNS")
+    dns_result = resultats["resultats"].get("dns", {})
+    for k, v in dns_result.items():
+        val = ', '.join(v) if v else 'Aucune donnée'
+        pdf.section_text(f"{k}: {val}")
+
+    pdf.section_title("Résultat des Scans IP")
+    ips = resultats["resultats"].get("ips", {})
+    for ip, ip_data in ips.items():
+        pdf.subsection_title(f"Adresse IP : {ip}")
+        pdf.section_text("Nmap:")
+        pdf.section_text(ip_data.get("nmap", "Aucune donnée"))
+
+        shodan = ip_data.get("shodan", {})
+        if isinstance(shodan, dict):
+            pdf.section_text("Shodan:")
+            for sk, sv in shodan.items():
+                if sv:
+                    pdf.section_text(f"- {sk}: {sv}")
+        else:
+            pdf.section_text(f"Erreur Shodan: {shodan}")
+
+    pdf.section_title("Résultat OSINT (theHarvester)")
+    osint_raw = resultats["resultats"].get("osint", {}).get("texte", "")
+    cleaned_osint = clean_osint_text(osint_raw)
+    pdf.section_text(cleaned_osint[:5000])
+
+    pdf.section_title("Emails collectés (Hunter.io)")
+    emails = resultats["resultats"].get("emails", [])
+    if emails:
+        for email in emails:
+            if isinstance(email, dict):
+                email_text = f"- {email.get('email')} ({email.get('position') or 'poste inconnu'})"
+                if email.get("first_name") or email.get("last_name"):
+                    email_text += f" - {email.get('first_name', '')} {email.get('last_name', '')}"
+                if email.get("phone_number"):
+                    email_text += f" - 📞 {email.get('phone_number')}"
+                if email.get("confidence"):
+                    email_text += f" - 🔒 Confiance: {email.get('confidence')}%"
+                pdf.section_text(email_text)
+                if sources := email.get("sources"):
+                    pdf.section_text("  Sources:")
+                    for src in sources:
+                        pdf.section_text(f"    - {src.get('uri', '')}")
+            else:
+                pdf.section_text(f"- {email}")
+    else:
+        pdf.section_text("Aucun email trouvé.")
+
+    pdf.section_title("Synthèse et Recommandations")
+    pdf.section_text("Ce rapport fournit un aperçu de la posture de sécurité externe de l'entreprise. Il est recommandé :")
+    pdf.section_text("- De corriger toute configuration exposée détectée via Shodan ou Nmap.")
+    pdf.section_text("- D’analyser les emails identifiés et les points de fuite d’informations.")
+    pdf.section_text("- D’utiliser ces informations pour alimenter un plan d’actions cybersécurité.")
+
+    output_path = os.path.join(output_dir, f"diag_{siren}.pdf")
+    pdf.output(output_path)
+    print(f"📁 Rapport PDF généré : {output_path}")
