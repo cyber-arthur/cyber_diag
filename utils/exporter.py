@@ -48,10 +48,13 @@ def export_pdf(resultats, siren, output_dir):
     emails = resultats["resultats"].get("emails", [])
     if emails:
         for email in emails:
-            line = f"- {email.get('email')} ({email.get('position') or 'poste inconnu'})"
-            if email.get("phone_number"):
-                line += f" - {email.get('phone_number')}"
-            pdf.section_text(line)
+            if isinstance(email, dict):
+                line = f"- {email.get('email')} ({email.get('position') or 'poste inconnu'})"
+                if email.get("phone_number"):
+                    line += f" - {email.get('phone_number')}"
+                pdf.section_text(line)
+            else:
+                pdf.section_text(f"- {email}")
     else:
         pdf.section_text("Aucun email trouvé.")
 
