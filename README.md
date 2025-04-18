@@ -31,6 +31,7 @@ chmod +x cyber_diag.sh
 ## Utilisation
 
 ```bash
+source venv/bin/activate
 python main.py --nom entreprise.fr --siren 123456789 --ips 192.0.2.1 203.0.113.5
 ```
 
