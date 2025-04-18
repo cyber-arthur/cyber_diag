@@ -30,7 +30,7 @@ CyberDiag est un outil Python permettant d'effectuer un diagnostic rapide sur un
    
 3. Démarrer un environnement virtuel :
    ```
-   sudo python3 -m venv venv
+   python3 -m venv venv
    source venv/bin/activate
    cd theHarvester
    pip install -r requirements/base.txt
