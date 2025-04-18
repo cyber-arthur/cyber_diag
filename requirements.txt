@@ -3,3 +3,4 @@ shodan
 dnspython
 requests
 fpdf
+matplotlib
