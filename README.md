@@ -11,7 +11,15 @@ CyberDiag est un outil Python permettant d'effectuer un diagnostic rapide sur un
 - 🧾 Enrichissement entreprise via **API SIRENE**
 - 📄 Export des résultats en **JSON** et **PDF**
 
-## Installation
+## Installation des dépendances systèmes
+```bash
+sudo apt update && sudo apt install -y python3 python3-pip python3-venv python3-full nmap git dnsutils
+```
+## Récupération du repo
+git clone https://github.com/cyber-arthur/cyber_diag.git
+cd cyber_diag
+sudo chown -R $USER:$USER $(pwd)
+
 ```bash
 chmod +x install.sh
 ./install.sh
