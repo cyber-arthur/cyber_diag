@@ -32,13 +32,13 @@ CyberDiag est un outil Python permettant d'effectuer un diagnostic rapide sur un
    sudo python3 -m venv venv
    source venv/bin/activate
    cd theHarvester
-   sudo pip install -r requirements/base.txt
+   pip install -r requirements/base.txt
    cd ..
    ```
 
 4. Installez les dépendances :
    ```bash
-   sudo pip install -r requirements.txt
+   pip install -r requirements.txt
    ```
 
 5. Configurez votre fichier `.env` :
