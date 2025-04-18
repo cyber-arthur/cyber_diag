@@ -1,8 +1,6 @@
 from fpdf import FPDF
 import os
 import re
-from collections import Counter
-import matplotlib.pyplot as plt
 
 class PDF(FPDF):
     def header(self):
@@ -38,11 +36,6 @@ class PDF(FPDF):
         self.multi_cell(0, 5, safe_text)
         self.ln(1)
 
-    def add_image(self, image_path, w=100):
-        if os.path.exists(image_path):
-            self.image(image_path, w=w)
-            self.ln(5)
-
 def clean_osint_text(text):
     lines = text.splitlines()
     clean_lines = []
@@ -57,31 +50,6 @@ def clean_osint_text(text):
             continue
         clean_lines.append(line.strip())
     return "\n".join(clean_lines)
-
-def generate_ports_chart(ips_data, output_dir):
-    port_counts = Counter()
-    for ip_data in ips_data.values():
-        nmap_output = ip_data.get("nmap", "")
-        for line in nmap_output.splitlines():
-            match = re.match(r"(\d+)/tcp", line)
-            if match:
-                port = match.group(1)
-                port_counts[port] += 1
-
-    if port_counts:
-        ports = list(port_counts.keys())
-        counts = list(port_counts.values())
-        plt.figure(figsize=(8, 4))
-        plt.bar(ports, counts, color='steelblue')
-        plt.title("Ports détectés (via Nmap)")
-        plt.xlabel("Port TCP")
-        plt.ylabel("Occurrences")
-        plt.tight_layout()
-        chart_path = os.path.join(output_dir, "nmap_ports.png")
-        plt.savefig(chart_path)
-        plt.close()
-        return chart_path
-    return None
 
 def export_pdf(resultats, siren, output_dir):
     pdf = PDF()
@@ -106,20 +74,15 @@ def export_pdf(resultats, siren, output_dir):
         pdf.subsection_title(f"Adresse IP : {ip}")
         pdf.section_text("Nmap:")
         pdf.section_text(ip_data.get("nmap", "Aucune donnée"))
-        pdf.section_text("Shodan:")
+
         shodan = ip_data.get("shodan", {})
         if isinstance(shodan, dict):
+            pdf.section_text("Shodan:")
             for sk, sv in shodan.items():
                 if sv:
                     pdf.section_text(f"- {sk}: {sv}")
         else:
             pdf.section_text(f"Erreur Shodan: {shodan}")
-
-    # ➕ Ajout du graphique Nmap
-    chart_path = generate_ports_chart(ips, output_dir)
-    if chart_path:
-        pdf.section_title("Visualisation des ports détectés")
-        pdf.add_image(chart_path, w=160)
 
     pdf.section_title("Résultat OSINT (theHarvester)")
     osint_raw = resultats["resultats"].get("osint", {}).get("texte", "")
