@@ -14,7 +14,7 @@ CyberDiag est un outil Python permettant d'effectuer un diagnostic rapide sur un
 ## Installation
 1. Installer les dépendances requises :
    ```
-   sudo apt update && sudo apt install -y python3 python3-pip python3-venv python3-xyz nmap git dnsutils 
+   sudo apt update && sudo apt install -y python3 python3-pip python3-venv python3-full nmap git dnsutils 
    ```
    
 2. Clonez le dépôt :
