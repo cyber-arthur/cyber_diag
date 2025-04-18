@@ -34,6 +34,7 @@ N'oubliez pas de renseignez les clés API nécessaire à l'utilisation de Shodan
 sudo vi .env
 SHODAN_API_KEY=xxxxxx
 HUNTER_API_KEY=xxxxxx
+```
 
 ```bash
 source venv/bin/activate
