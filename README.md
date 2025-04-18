@@ -19,7 +19,7 @@ CyberDiag est un outil Python permettant d'effectuer un diagnostic rapide sur un
    
 2. Clonez le dépôt :
    ```bash
-   git clone git@github.com:cyber-arthur/cyber_diag.git
+   sudo git clone https://github.com/cyber-arthur/cyber_diag.git
    cd cyber_diag
    ```
 3. Installer the Harvester :
