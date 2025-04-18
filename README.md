@@ -11,6 +11,13 @@ CyberDiag est un outil Python permettant d'effectuer un diagnostic rapide sur un
 - 🧾 Enrichissement entreprise via **API SIRENE**
 - 📄 Export des résultats en **JSON** et **PDF**
 
+## Prérequis externes
+
+- `theHarvester` installé dans `~/theHarvester/`
+```
+git clone https://github.com/laramies/theHarvester.git
+pip install -r requirements/base.txt ```
+
 ## Installation
 
 1. Clonez le dépôt :
@@ -38,13 +45,8 @@ python main.py --nom entreprise.fr --siren 123456789 --ips 192.0.2.1 203.0.113.5
 
 ## Résultats
 
-- `diag_<SIREN>.json` : Résultat complet au format machine
-- `diag_<SIREN>.pdf` : Rapport lisible pour les humains
-
-## Prérequis externes
-
-- `nmap` installé localement
-- `theHarvester` installé dans `~/theHarvester/`
+- `diag_<SIREN>.json` : Résultat complet au format JSON
+- `diag_<SIREN>.pdf` : Rapport au format PDF 
 
 ## Sécurité et licence
 
