@@ -16,10 +16,13 @@ CyberDiag est un outil Python permettant d'effectuer un diagnostic rapide sur un
 sudo apt update && sudo apt install -y python3 python3-pip python3-venv python3-full nmap git dnsutils
 ```
 ## Récupération du repo
+```bash
 git clone https://github.com/cyber-arthur/cyber_diag.git
 cd cyber_diag
 sudo chown -R $USER:$USER $(pwd)
+```
 
+## Installation de cyber_diag
 ```bash
 chmod +x install.sh
 ./install.sh
