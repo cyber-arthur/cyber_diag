@@ -21,6 +21,7 @@ CyberDiag est un outil Python permettant d'effectuer un diagnostic rapide sur un
    ```bash
    sudo git clone https://github.com/cyber-arthur/cyber_diag.git
    cd cyber_diag
+   sudo chown -R $USER:$USER /home/ubuntu/cyber_diag
    ```
 3. Installer the Harvester :
    ```
