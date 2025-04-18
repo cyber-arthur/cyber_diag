@@ -24,7 +24,7 @@ python main.py --nom entreprise.fr --siren 123456789 --ips 192.0.2.1 203.0.113.5
 ```
 
 ## Résultats
-Un dossier `resultats` est crée où se trouvent 2 fichiers : 
+Lorsque le script a terminé, un dossier `resultats` est crée où se trouvent 2 fichiers : 
 - `diag_<SIREN>.json` : Résultat complet au format JSON
 - `diag_<SIREN>.pdf` : Rapport au format PDF 
 
