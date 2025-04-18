@@ -2,3 +2,4 @@ python-dotenv
 shodan
 dnspython
 requests
+fpdf
