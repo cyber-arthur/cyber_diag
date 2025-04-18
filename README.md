@@ -24,21 +24,21 @@ CyberDiag est un outil Python permettant d'effectuer un diagnostic rapide sur un
    ```
 3. Installer the Harvester :
    ```
-   git clone https://github.com/laramies/theHarvester.git
+   sudo git clone https://github.com/laramies/theHarvester.git
    ```
    
 3. Démarrer un environnement virtuel :
    ```
-   python3 -m venv venv
+   sudo python3 -m venv venv
    source venv/bin/activate
    cd theHarvester
-   pip install -r requirements/base.txt
+   sudo pip install -r requirements/base.txt
    cd ..
    ```
 
 4. Installez les dépendances :
    ```bash
-   pip install -r requirements.txt
+   sudo pip install -r requirements.txt
    ```
 
 5. Configurez votre fichier `.env` :
