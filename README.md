@@ -32,7 +32,10 @@ chmod +x cyber_diag.sh
 N'oubliez pas de renseignez les clés APIs nécessaires à l'utilisation de Shodan et Hunter.io
 ```bash
 sudo echo "SHODAN_API_KEY=xxxx
-HUNTER_API_KEY=xxxxx" > .env
+HUNTER_API_KEY=xxxx
+GREYNOISE_API_KEY=xxxx
+VT_API_KEY=xxxx
+" > .env
 ```
 
 ```bash
