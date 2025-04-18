@@ -13,7 +13,7 @@ CyberDiag est un outil Python permettant d'effectuer un diagnostic rapide sur un
 
 ## Prérequis externes
 
-- `theHarvester` installé dans `~/theHarvester/`
+1. `theHarvester` installé dans `~/theHarvester/`
 ```
 git clone https://github.com/laramies/theHarvester.git
 pip install -r requirements/base.txt ```
