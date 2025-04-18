@@ -7,7 +7,7 @@ from utils.dns_tools import dns_lookup
 from utils.hunter import hunter_search
 from utils.osint import osint_harvester
 from utils.scanner import nmap_scan, shodan_scan
-from utils.exporter import export_txt
+from utils.exporter import export_pdf
 
 load_dotenv()
 
