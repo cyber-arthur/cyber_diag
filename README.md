@@ -8,7 +8,6 @@ CyberDiag est un outil Python permettant d'effectuer un diagnostic rapide sur un
 - 🌐 Recherche **DNS** (A, MX, NS, TXT, etc.)
 - 🕵️ OSINT via **theHarvester**
 - 📬 Emails collectés avec **Hunter.io**
-- 🧾 Enrichissement entreprise via **API SIRENE**
 - 📄 Export des résultats en **JSON** et **PDF**
 
 ## Installation des dépendances systèmes
