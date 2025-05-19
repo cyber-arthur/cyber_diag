@@ -3,6 +3,9 @@ import os
 import re
 from collections import Counter
 import matplotlib.pyplot as plt
+from utils.osint_advanced import check_greynoise, check_virustotal
+
+# FONCTIONS PDF & OUTILS
 
 def safe_extract(data: dict, fields: list):
     if "error" in data:
@@ -80,3 +83,41 @@ def clean_osint_text(text):
             continue
         clean_lines.append(line.strip())
     return "\n".join(clean_lines)
+
+def export_pdf(resultats, siren, output_dir):
+    pdf = PDF()
+    pdf.set_title(f"Rapport - {resultats.get('entreprise', 'N/A')}")
+    pdf.add_page()
+
+    entreprise = resultats.get('entreprise', 'N/A')
+    pdf.section_title(f"Informations générales - {entreprise} ({siren})")
+    siren_data = resultats["resultats"].get("siren_data", {})
+    for k, v in siren_data.items():
+        pdf.section_text(f"{k}: {v}")
+
+    pdf.section_title("Résumé par IP")
+    ips = resultats["resultats"].get("ips", {})
+    for ip, ip_data in ips.items():
+        greynoise = ip_data.get("greynoise", {})
+        nmap = ip_data.get("nmap", "")
+        ports = re.findall(r"(\d+)/tcp", nmap)
+        summary = pdf.ip_summary(ip, ports, greynoise)
+        pdf.section_text(summary)
+
+    pdf.section_title("Score cybersécurité")
+    stats = [
+        ("DNS valide", bool(resultats["resultats"].get("dns"))),
+        ("Analyse VirusTotal disponible", "error" not in resultats["resultats"].get("virustotal", {})),
+        ("GreyNoise opérationnel", any("classification" in ip.get("greynoise", {}) for ip in ips.values())),
+        ("Emails trouvés", len(resultats["resultats"].get("emails", [])) > 0),
+    ]
+    pdf.draw_score_block(stats)
+
+    pdf.section_title("Résultat OSINT (theHarvester)")
+    osint_raw = resultats["resultats"].get("osint", {}).get("texte", "")
+    cleaned_osint = clean_osint_text(osint_raw)
+    pdf.section_text(cleaned_osint[:5000])
+
+    output_path = os.path.join(output_dir, f"diag_{siren}.pdf")
+    pdf.output(output_path)
+    print(f"📁 Rapport PDF généré : {output_path}")
