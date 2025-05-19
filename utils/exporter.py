@@ -4,6 +4,11 @@ import re
 from collections import Counter
 import matplotlib.pyplot as plt
 
+def safe_extract(data: dict, fields: list):
+    if "error" in data:
+        return []
+    return [f"{field}: {data.get(field, 'N/A')}" for field in fields]
+
 class PDF(FPDF):
     def header(self):
         self.set_font("Arial", "B", 16)
@@ -34,14 +39,32 @@ class PDF(FPDF):
 
     def section_text(self, text):
         self.set_font("Arial", "", 10)
-        safe_text = text.encode('latin-1', 'replace').decode('latin-1')
+        clean = text.replace('’', "'")
+        safe_text = clean.encode('latin-1', 'replace').decode('latin-1')
         self.multi_cell(0, 5, safe_text)
         self.ln(1)
 
-    def add_image(self, image_path, w=100):
-        if os.path.exists(image_path):
-            self.image(image_path, w=w)
-            self.ln(5)
+    def ip_summary(self, ip, services, greynoise):
+        summary = f"[IP] {ip} — "
+        if greynoise.get("classification") == "malicious":
+            summary += "⚠️ Activité malveillante détectée"
+        elif greynoise.get("classification") == "benign":
+            summary += "✅ Activité bénigne"
+        else:
+            summary += "❓ Non classée"
+
+        if any(port in services for port in ["21", "23", "445"]):
+            summary += " | ⚠️ Ports sensibles exposés"
+        return summary
+
+    def draw_score_block(self, items):
+        self.set_font("Arial", "B", 12)
+        self.set_fill_color(245, 245, 245)
+        for label, status in items:
+            symbol = "✅" if status else "⛔"
+            line = f"{symbol} {label}"
+            self.cell(0, 8, line.encode('latin-1', 'replace').decode('latin-1'), 0, 1, fill=True)
+        self.ln(4)
 
 def clean_osint_text(text):
     lines = text.splitlines()
@@ -57,117 +80,3 @@ def clean_osint_text(text):
             continue
         clean_lines.append(line.strip())
     return "\n".join(clean_lines)
-
-def generate_ports_chart(ips_data, output_dir):
-    port_counts = Counter()
-    for ip_data in ips_data.values():
-        nmap_output = ip_data.get("nmap", "")
-        for line in nmap_output.splitlines():
-            match = re.match(r"(\d+)/tcp", line)
-            if match:
-                port = match.group(1)
-                port_counts[port] += 1
-
-    if port_counts:
-        ports = list(port_counts.keys())
-        counts = list(port_counts.values())
-        plt.figure(figsize=(8, 4))
-        plt.bar(ports, counts, color='steelblue')
-        plt.title("Ports détectés (via Nmap)")
-        plt.xlabel("Port TCP")
-        plt.ylabel("Occurrences")
-        plt.tight_layout()
-        chart_path = os.path.join(output_dir, "nmap_ports.png")
-        plt.savefig(chart_path)
-        plt.close()
-        return chart_path
-    return None
-
-def export_pdf(resultats, siren, output_dir):
-    from utils.osint_advanced import check_greynoise, check_virustotal
-
-    pdf = PDF()
-    pdf.set_title(f"Rapport - {resultats.get('entreprise', 'N/A')}")
-    pdf.add_page()
-
-    entreprise = resultats.get('entreprise', 'N/A')
-    pdf.section_title(f"Informations générales - {entreprise} ({siren})")
-    siren_data = resultats["resultats"].get("siren_data", {})
-    for k, v in siren_data.items():
-        pdf.section_text(f"{k}: {v}")
-
-    pdf.section_title("Résultat DNS")
-    dns_result = resultats["resultats"].get("dns", {})
-    for k, v in dns_result.items():
-        val = ', '.join(v) if v else 'Aucune donnée'
-        pdf.section_text(f"{k}: {val}")
-
-    pdf.section_title("Résultat des Scans IP")
-    ips = resultats["resultats"].get("ips", {})
-    for ip, ip_data in ips.items():
-        pdf.subsection_title(f"Adresse IP : {ip}")
-        pdf.section_text("Nmap:")
-        pdf.section_text(ip_data.get("nmap", "Aucune donnée"))
-
-        pdf.section_text("Shodan:")
-        shodan = ip_data.get("shodan", {})
-        if isinstance(shodan, dict):
-            for sk, sv in shodan.items():
-                if sv:
-                    pdf.section_text(f"- {sk}: {sv}")
-        else:
-            pdf.section_text(f"Erreur Shodan: {shodan}")
-
-        # ➕ GreyNoise enrichment
-        greynoise_data = check_greynoise(ip)
-        pdf.section_text("GreyNoise:")
-        for gk, gv in greynoise_data.items():
-            pdf.section_text(f"- {gk}: {gv}")
-
-    # ➕ Ajout du graphique Nmap
-    chart_path = generate_ports_chart(ips, output_dir)
-    if chart_path:
-        pdf.section_title("Visualisation des ports détectés")
-        pdf.add_image(chart_path, w=160)
-
-    pdf.section_title("Résultat OSINT (theHarvester)")
-    osint_raw = resultats["resultats"].get("osint", {}).get("texte", "")
-    cleaned_osint = clean_osint_text(osint_raw)
-    pdf.section_text(cleaned_osint[:5000])
-
-    pdf.section_title("Analyse VirusTotal (Domaine)")
-    vt_data = check_virustotal(entreprise)
-    for k, v in vt_data.items():
-        pdf.section_text(f"- {k}: {v}")
-
-    pdf.section_title("Emails collectés (Hunter.io)")
-    emails = resultats["resultats"].get("emails", [])
-    if emails:
-        for email in emails:
-            if isinstance(email, dict):
-                email_text = f"- {email.get('email')} ({email.get('position') or 'poste inconnu'})"
-                if email.get("first_name") or email.get("last_name"):
-                    email_text += f" - {email.get('first_name', '')} {email.get('last_name', '')}"
-                if email.get("phone_number"):
-                    email_text += f" - 📞 {email.get('phone_number')}"
-                if email.get("confidence"):
-                    email_text += f" - 🔒 Confiance: {email.get('confidence')}%"
-                pdf.section_text(email_text)
-                if sources := email.get("sources"):
-                    pdf.section_text("  Sources:")
-                    for src in sources:
-                        pdf.section_text(f"    - {src.get('uri', '')}")
-            else:
-                pdf.section_text(f"- {email}")
-    else:
-        pdf.section_text("Aucun email trouvé.")
-
-    pdf.section_title("Synthèse et Recommandations")
-    pdf.section_text("Ce rapport fournit un aperçu de la posture de sécurité externe de l'entreprise. Il est recommandé :")
-    pdf.section_text("- De corriger toute configuration exposée détectée via Shodan, GreyNoise ou Nmap.")
-    pdf.section_text("- D’analyser les emails identifiés et les points de fuite d’informations.")
-    pdf.section_text("- D’utiliser ces informations pour alimenter un plan d’actions cybersécurité.")
-
-    output_path = os.path.join(output_dir, f"diag_{siren}.pdf")
-    pdf.output(output_path)
-    print(f"📁 Rapport PDF généré : {output_path}")
