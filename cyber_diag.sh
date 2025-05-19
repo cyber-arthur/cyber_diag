@@ -27,7 +27,7 @@ source $VENV_DIR/bin/activate
 echo "⬆️ Installation des dépendances Python..."
 cd $HARVESTER_DIR/
 echo "📚 Installation des dépendances de theHarvester..."
-pip install -r requirements/base.txt
+pip install -r requirements.txt
 cd ..
 pip install --upgrade pip
 pip install -r $REQUIREMENTS
