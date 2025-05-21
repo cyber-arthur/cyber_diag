@@ -84,7 +84,7 @@ def generate_ports_chart(ips_data, output_dir):
     return None
 
 def export_pdf(resultats, siren, output_dir):
-    from utils.osint_advanced import check_virustotal
+    from utils.osint_advanced import VirusTotalClient
 
     pdf = PDF()
     pdf.set_title(f"Rapport - {resultats.get('entreprise', 'N/A')}")
