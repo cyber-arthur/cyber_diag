@@ -45,7 +45,7 @@ def cyber_diag(nom_entreprise: str, siren: str, ip_list: list):
         json.dump(resultats, f, indent=2, ensure_ascii=False)
 
     export_pdf(resultats, siren, OUTPUT_DIR)
-    print(f"\n✅ Rapport JSON généré : {output_file}")
+    print(f"✅ Rapport JSON généré : {output_file}")
     return resultats
 
 if __name__ == "__main__":
