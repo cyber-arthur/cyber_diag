@@ -84,7 +84,7 @@ def generate_ports_chart(ips_data, output_dir):
     return None
 
 def export_pdf(resultats, siren, output_dir):
-    from utils.osint_advanced import check_greynoise, check_virustotal
+    from utils.osint_advanced import, check_virustotal
 
     pdf = PDF()
     pdf.set_title(f"Rapport - {resultats.get('entreprise', 'N/A')}")
@@ -118,11 +118,6 @@ def export_pdf(resultats, siren, output_dir):
         else:
             pdf.section_text(f"Erreur Shodan: {shodan}")
 
-        # ➕ GreyNoise enrichment
-        greynoise_data = check_greynoise(ip)
-        pdf.section_text("GreyNoise:")
-        for gk, gv in greynoise_data.items():
-            pdf.section_text(f"- {gk}: {gv}")
 
     # ➕ Ajout du graphique Nmap
     chart_path = generate_ports_chart(ips, output_dir)
