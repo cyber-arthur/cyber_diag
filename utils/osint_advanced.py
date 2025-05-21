@@ -12,9 +12,6 @@ VT_API_KEY = os.getenv("VT_API_KEY")
 if not VT_API_KEY:
     raise RuntimeError("Il faut définir VT_API_KEY dans votre .env")
 
-# Configuration du logger
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 class VirusTotalClient:
     BASE_URL = "https://www.virustotal.com/api/v3"
@@ -28,7 +25,6 @@ class VirusTotalClient:
         url = f"{self.BASE_URL}{path}"
         resp = self.session.get(url, params=params, timeout=10)
         if resp.status_code == 429:  # rate limit
-            logger.warning("Rate limit hit, sleeping %ds...", self.RATE_LIMIT_SLEEP)
             time.sleep(self.RATE_LIMIT_SLEEP)
             return self._get(path, params)
         resp.raise_for_status()
@@ -83,7 +79,6 @@ class VirusTotalClient:
 
     def check_domain(self, domain: str) -> Dict[str, Any]:
         """Fonction tout-en-un renvoyant un dict structuré."""
-        logger.info("Récupération des infos VirusTotal pour %s", domain)
         report = self.domain_report(domain).get("data", {}).get("attributes", {})
         return {
             "stats": report.get("last_analysis_stats", {}),

@@ -44,7 +44,6 @@ def cyber_diag(nom_entreprise: str, siren: str, ip_list: list):
         resultats["resultats"]["ips"][ip] = {
             "nmap": nmap_scan(ip),
             "shodan": shodan_scan(ip, SHODAN_API_KEY),
-            "greynoise": check_greynoise(ip)
         }
 
     output_file = os.path.join(OUTPUT_DIR, f"diag_{siren}.json")
