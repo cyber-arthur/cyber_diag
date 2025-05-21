@@ -1,17 +1,59 @@
-from fpdf import FPDF
 import os
 import re
+import ssl
+import socket
+import requests
 from collections import Counter
-import matplotlib.pyplot as plt
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from fpdf import FPDF
+import matplotlib.pyplot as plt
 
 # ================== Configurations ==================
-FONT_FAMILY = "Helvetica"  # Famille de polices intégrée
-CORPORATE_COLOR = (0, 51, 102)  # Bleu Cyber SES
+FONT_FAMILY = "Helvetica"
+CORPORATE_COLOR = (0, 51, 102)
 CHART_SIZE = (6, 3)
 DATE_FORMAT = "%d %B %Y %H:%M %Z"
 TIMEZONE = "Europe/Paris"
+
+# ================== Helpers: SSL Certificate & HTTP Headers ==================
+def fetch_certificate_info(domain: str) -> dict:
+    """Récupère le certificat TLS du domaine via socket"""
+    ctx = ssl.create_default_context()
+    with ctx.wrap_socket(socket.socket(), server_hostname=domain) as s:
+        s.settimeout(5)
+        s.connect((domain, 443))
+        cert = s.getpeercert()
+
+    # Flatten issuer and subject RDNs
+    issuer_fields = {}
+    subject_fields = {}
+    for rdn in cert.get('issuer', []):
+        for attr, val in rdn:
+            issuer_fields[attr] = val
+    for rdn in cert.get('subject', []):
+        for attr, val in rdn:
+            subject_fields[attr] = val
+
+    issuer = issuer_fields.get('organizationName') or issuer_fields.get('O') or 'N/A'
+    subject = subject_fields.get('commonName') or subject_fields.get('CN') or 'N/A'
+    not_before = cert.get('notBefore', 'N/A')
+    not_after = cert.get('notAfter', 'N/A')
+    return {
+        'issuer': issuer,
+        'subject': subject,
+        'not_before': not_before,
+        'not_after': not_after
+    }
+
+
+def fetch_http_headers(domain: str) -> dict:
+    """Effectue une requête HEAD pour récupérer les headers HTTP"""
+    try:
+        resp = requests.head(f"https://{domain}", timeout=5)
+        return dict(resp.headers)
+    except Exception:
+        return {}
 
 # ================== PDF Class ==================
 class PDF(FPDF):
@@ -101,19 +143,19 @@ def generate_ports_chart(ips_data: dict, output_dir: str) -> str | None:
             m = re.match(r"(\d+)/tcp", line)
             if m:
                 port_counts[int(m.group(1))] += 1
-    if port_counts:
-        ports, counts = zip(*sorted(port_counts.items()))
-        plt.figure(figsize=CHART_SIZE)
-        plt.bar(ports, counts)
-        plt.title("Ports détectés (via Nmap)")
-        plt.xlabel("Port TCP")
-        plt.ylabel("Occurrences")
-        plt.tight_layout()
-        path = os.path.join(output_dir, "nmap_ports.png")
-        plt.savefig(path)
-        plt.close()
-        return path
-    return None
+    if not port_counts:
+        return None
+    ports, counts = zip(*sorted(port_counts.items()))
+    plt.figure(figsize=CHART_SIZE)
+    plt.bar(ports, counts)
+    plt.title("Ports détectés (via Nmap)")
+    plt.xlabel("Port TCP")
+    plt.ylabel("Occurrences")
+    plt.tight_layout()
+    path = os.path.join(output_dir, "nmap_ports.png")
+    plt.savefig(path)
+    plt.close()
+    return path
 
 # ================== OSINT Cleaning ==================
 def clean_osint_text(text: str) -> str:
@@ -141,22 +183,19 @@ def export_pdf(resultats: dict, siren: str, output_dir: str) -> None:
         "OSINT (theHarvester)",
         "Détails VirusTotal"
     ]
-
     entreprise = resultats.get("entreprise", "N/A")
     vt = resultats.get("resultats", {}).get("virustotal", {})
-    whois = vt.get("whois", {})
-    emails_site = resultats.get("resultats", {}).get("emails_crawl", [])
     emails_ext = resultats.get("resultats", {}).get("emails", [])
     dns = resultats.get("resultats", {}).get("dns", {})
     ips = resultats.get("resultats", {}).get("ips", {})
-    ssl = vt.get("ssl", {})
-    headers = vt.get("http_headers", {})
 
     pdf = PDF()
+    # Page de garde
     pdf.cover_page(
         title="Rapport de Diagnostic Cybersécurité",
         subtitle=f"{entreprise} (SIREN {siren})"
     )
+    # Sommaire
     pdf.toc_page(sections)
     pdf.add_page()
 
@@ -165,51 +204,48 @@ def export_pdf(resultats: dict, siren: str, output_dir: str) -> None:
     pdf.section_text(f"Domaine : {entreprise}")
     pdf.section_text(f"SIREN : {siren}")
     stats = vt.get("stats", {})
-    risk = ("Élevé" if stats.get("malicious", 0) > 0 else
-            "Modéré" if stats.get("suspicious", 0) > 0 else
-            "Faible")
+    risk = "Élevé" if stats.get("malicious", 0) > 0 else ("Modéré" if stats.get("suspicious", 0) > 0 else "Faible")
     pdf.section_text(f"Risque global : {risk}")
 
     # 2. WHOIS & Domaine
     pdf.section_title("WHOIS & Domaine")
-    creation = whois.get('creation_date', 'N/A')
-    exp = whois.get('expiration_date', 'N/A')
-    pdf.section_text(f"Registrar    : {whois.get('registrar', 'N/A')}")
-    pdf.section_text(f"Création     : {creation}")
-    pdf.section_text(f"Expiration   : {exp}")
-    pdf.section_text(f"Propriétaire : {whois.get('owner', 'N/A')}")
-    ns = whois.get('name_servers', [])
-    pdf.section_text(f"Serveurs DNS : {', '.join(ns) if ns else 'N/A'}")
+    whois_info = vt.get("whois", {})
+    pdf.section_text(f"Registrar    : {whois_info.get('registrar', 'N/A')}")
+    pdf.section_text(f"Création     : {whois_info.get('creation_date', 'N/A')}")
+    pdf.section_text(f"Expiration   : {whois_info.get('expiration_date', 'N/A')}")
+    ns_list = whois_info.get('name_servers', [])
+    pdf.section_text(f"Serveurs DNS : {', '.join(ns_list) if ns_list else 'N/A'}")
 
     # 3. Certificat SSL/TLS
+    ssl_info = fetch_certificate_info(entreprise)
     pdf.section_title("Certificat SSL/TLS")
-    pdf.section_text(f"Émetteur      : {ssl.get('issuer', 'N/A')}")
-    pdf.section_text(f"Sujet         : {ssl.get('subject', 'N/A')}")
-    pdf.section_text(f"Valide du     : {ssl.get('not_before', 'N/A')}")
-    pdf.section_text(f"au            : {ssl.get('not_after', 'N/A')}")
+    pdf.section_text(f"Émetteur : {ssl_info['issuer']}")
+    pdf.section_text(f"Sujet     : {ssl_info['subject']}")
+    pdf.section_text(f"Valide du : {ssl_info['not_before']}")
+    pdf.section_text(f"au        : {ssl_info['not_after']}")
 
     # 4. Headers HTTP
+    headers = fetch_http_headers(entreprise)
     pdf.section_title("Headers HTTP")
-    for k, v in headers.items():
-        if k.lower() in ['server', 'x-frame-options', 'strict-transport-security', 'content-security-policy']:
-            pdf.section_text(f"{k}: {v}")
+    if headers:
+        for k, v in headers.items():
+            if k.lower() in ['server', 'x-frame-options', 'strict-transport-security', 'content-security-policy']:
+                pdf.section_text(f"{k}: {v}")
+    else:
+        pdf.section_text("Aucun header HTTP récupéré.")
 
     # 5. Emails détectés
     pdf.section_title("Emails détectés")
-    if emails_ext or emails_site:
-        pdf.subsection_title("Externe (Hunter.io)")
+    if emails_ext:
         for e in emails_ext:
             pdf.section_text(f"- {e.get('email')} ({e.get('confidence', 'N/C')}%)")
-        pdf.subsection_title("Site web")
-        for e in emails_site:
-            pdf.section_text(f"- {e}")
     else:
         pdf.section_text("Aucun email détecté.")
 
     # 6. DNS Records
     pdf.section_title("DNS Records")
     for k, vals in dns.items():
-        vals_str = ', '.join(vals) if isinstance(vals, (list, tuple)) else vals
+        vals_str = ', '.join(vals) if isinstance(vals, (list,tuple)) else vals
         pdf.section_text(f"{k}: {vals_str}")
 
     # 7. Scans IP
@@ -223,22 +259,22 @@ def export_pdf(resultats: dict, siren: str, output_dir: str) -> None:
 
     # 8. Ports détectés
     pdf.section_title("Ports détectés")
-    chart = generate_ports_chart(ips, output_dir)
-    if chart:
-        pdf.add_image(chart, w=160)
+    chart_path = generate_ports_chart(ips, output_dir)
+    if chart_path:
+        pdf.add_image(chart_path, w=160)
 
     # 9. OSINT (theHarvester)
     pdf.section_title("OSINT (theHarvester)")
-    raw = resultats.get('resultats', {}).get('osint', {}).get('texte', '')
-    cleaned = clean_osint_text(raw)
-    preview = cleaned[:2000] + ('...' if len(cleaned) > 2000 else '')
-    pdf.section_text(preview)
+    raw_text = resultats.get('resultats', {}).get('osint', {}).get('texte', '')
+    cleaned = clean_osint_text(raw_text)
+    snippet = cleaned[:2000] + ('...' if len(cleaned)>2000 else '')
+    pdf.section_text(snippet)
 
     # 10. Détails VirusTotal
     pdf.section_title("Détails VirusTotal")
     for k, v in stats.items():
         pdf.section_text(f"- {k}: {v}")
-    findings = [(eng, info.get('category')) for eng, info in vt.get('results', {}).items() if info.get('category') in ['malicious', 'suspicious']]
+    findings = [(eng, info.get('category')) for eng, info in vt.get('results', {}).items() if info.get('category') in ['malicious','suspicious']]
     if findings:
         pdf.section_text("Moteurs détectant des menaces:")
         for eng, cat in findings:
@@ -246,6 +282,6 @@ def export_pdf(resultats: dict, siren: str, output_dir: str) -> None:
 
     # Enregistrement
     os.makedirs(output_dir, exist_ok=True)
-    out_path = os.path.join(output_dir, f"diag_{siren}.pdf")
-    pdf.output(out_path)
-    print(f"📁 Rapport PDF généré : {out_path}")
+    output_path = os.path.join(output_dir, f"diag_{siren}.pdf")
+    pdf.output(output_path)
+    print(f"📁 Rapport PDF généré : {output_path}")

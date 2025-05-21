@@ -18,7 +18,7 @@ VT_API_KEY = os.getenv("VT_API_KEY")
 if not VT_API_KEY:
     raise RuntimeError("Il faut définir VT_API_KEY dans votre .env")
 
-# Instanciation des clients
+# Instantiation des clients VT et WHOIS
 vt_client = VirusTotalClient(VT_API_KEY)
 osint_client = OSINTClient(vt_client)
 
@@ -28,7 +28,8 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 def cyber_diag(nom_entreprise: str, siren: str, ip_list: list):
     print(f"📡 Diagnostic pour {nom_entreprise} ({siren})...")
-    # Collecte des résultats
+
+    # Collecte initiale
     resultats = {
         "entreprise": nom_entreprise,
         "siren": siren,
@@ -37,12 +38,21 @@ def cyber_diag(nom_entreprise: str, siren: str, ip_list: list):
             "dns": dns_lookup(nom_entreprise),
             "osint": osint_harvester(nom_entreprise),
             "emails": hunter_search(nom_entreprise, HUNTER_API_KEY),
-            # Données VirusTotal + WHOIS
             "virustotal": osint_client.check_domain(nom_entreprise)
         }
     }
 
-    # Scans des IPs
+    # Extraire les infos WHOIS enrichies pour l'exportateur
+    vt_data = resultats["resultats"]["virustotal"]
+    resultats["resultats"]["virustotal"]["whois"] = {
+        "registrar": vt_data.get("whois_registrar", "N/A"),
+        "creation_date": vt_data.get("whois_creation_date", "N/A"),
+        "expiration_date": vt_data.get("whois_expiration_date", "N/A"),
+        "owner": vt_data.get("whois_registrar", "N/A"),
+        "name_servers": vt_data.get("whois_name_servers", [])
+    }
+
+    # Scans IP
     for ip in ip_list:
         print(f"➡️ Scan IP {ip}...")
         resultats["resultats"]["ips"][ip] = {
@@ -50,15 +60,14 @@ def cyber_diag(nom_entreprise: str, siren: str, ip_list: list):
             "shodan": shodan_scan(ip, SHODAN_API_KEY)
         }
 
-    # Sauvegarde JSON (convertit les datetimes en str)
+    # Sauvegarde JSON (datetime => str)
     json_path = os.path.join(OUTPUT_DIR, f"diag_{siren}.json")
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(resultats, f, indent=2, ensure_ascii=False, default=str)
     print(f"✅ Rapport JSON généré : {json_path}")
 
-    # Génération du PDF
+    # Génération PDF
     export_pdf(resultats, siren, OUTPUT_DIR)
-
     return resultats
 
 if __name__ == "__main__":
