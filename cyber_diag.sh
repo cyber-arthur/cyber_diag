@@ -38,6 +38,7 @@ if [ ! -f ".env" ]; then
     cat <<EOF > .env
 SHODAN_API_KEY=your_shodan_api_key
 HUNTER_API_KEY=your_hunter_api_key
+VT_API_KEY=your_hunter_api_key
 EOF
     echo "⚠️  N'oubliez pas de remplir vos clés dans .env !"
 else
