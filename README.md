@@ -27,31 +27,6 @@ Les résultats sont exportés au format **JSON** et **PDF** (mise en page corpor
 
 ---
 
-````markdown
-# CyberDiag : outil de diagnostic cybersécurité
-
-**CyberDiag** est un outil CLI Python qui réalise un diagnostic complet d’une entreprise en analysant :
-- son **domaine** web (WHOIS, DNS, certificat SSL/TLS, en-têtes HTTP)  
-- ses **adresses IP publiques** (scan Nmap, services, Shodan)  
-- ses **informations exposées** (OSINT via theHarvester, Hunter.io, scraping du site web)  
-
-Les résultats sont exportés au format **JSON** et **PDF** (mise en page corporate, fuseau Europe/Paris).
-
----
-
-## 🚀 Fonctionnalités
-
-- 🔍 **Scan IP** (Nmap & Shodan)  
-- 🌐 **Recherche DNS** (A, MX, NS, TXT…)  
-- 🕵️‍♂️ **OSINT** passif via **theHarvester**  
-- 📬 **Emails** collectés avec **Hunter.io**  
-- 🛡️ **Analyse de domaine** via **VirusTotal v3**  
-- 🔒 **Certificat SSL/TLS** & **Headers HTTP**  
-- 🕸️ **Scraping** du site (contacts, téléphones, adresses, noms/prénoms, réseaux sociaux courts)  
-- 📄 **Rapports** JSON & PDF  
-
----
-
 ## 📦 Installation en une commande
 
 Cette unique ligne installe les dépendances système, clone le dépôt, et lance la configuration :
