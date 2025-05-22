@@ -1,5 +1,6 @@
 import argparse
 import json
+import random   
 import os
 from dotenv import load_dotenv
 
@@ -84,13 +85,28 @@ if __name__ == "__main__":
         help="Nom de domaine de l'entreprise (ex: entreprise.fr)"
     )
     parser.add_argument(
-        "--siren", required=True,
-        help="SIREN de l'entreprise"
+        "--siren", required=False,
+        help="SIREN de l'entreprise (9 chiffres). Si absent, un SIREN aléatoire sera généré."
     )
     parser.add_argument(
-        "--ips", required=True, nargs='+',
-        help="Liste des IP publiques à analyser"
+        "--ips", nargs="+", required=False,
+        help="Liste des IP publiques à analyser. Par défaut, 8.8.8.8 sera utilisée."
     )
     args = parser.parse_args()
-    cyber_diag(args.nom, args.siren, args.ips)
+
+    # SIREN par défaut si non fourni
+    if not args.siren:
+        siren = str(random.randint(10**8, 10**9 - 1))
+        print(f"Aucun SIREN fourni → génération d'un SIREN aléatoire : {siren}")
+    else:
+        siren = args.siren
+
+    # IP par défaut si non fournie
+    if not args.ips:
+        ip_list = ["8.8.8.8"]
+        print("Aucune IP fournie → scan par défaut sur : 8.8.8.8")
+    else:
+        ip_list = args.ips
+
+    cyber_diag(args.nom, siren, ip_list)
 
