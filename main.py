@@ -8,6 +8,7 @@ from utils.hunter import hunter_search
 from utils.osint import osint_harvester
 from utils.scanner import nmap_scan, shodan_scan
 from utils.osint_advanced import VirusTotalClient, OSINTClient
+from utils.scraper import SiteScraper
 from utils.exporter import export_pdf
 
 # Chargement des clés d'API
@@ -18,7 +19,7 @@ VT_API_KEY = os.getenv("VT_API_KEY")
 if not VT_API_KEY:
     raise RuntimeError("Il faut définir VT_API_KEY dans votre .env")
 
-# Instantiation des clients VT et WHOIS
+# Instanciation des clients VT et OSINT
 vt_client = VirusTotalClient(VT_API_KEY)
 osint_client = OSINTClient(vt_client)
 
@@ -42,7 +43,7 @@ def cyber_diag(nom_entreprise: str, siren: str, ip_list: list):
         }
     }
 
-    # Extraire les infos WHOIS enrichies pour l'exportateur
+    # Enrichissement WHOIS
     vt_data = resultats["resultats"]["virustotal"]
     resultats["resultats"]["virustotal"]["whois"] = {
         "registrar": vt_data.get("whois_registrar", "N/A"),
@@ -52,6 +53,12 @@ def cyber_diag(nom_entreprise: str, siren: str, ip_list: list):
         "name_servers": vt_data.get("whois_name_servers", [])
     }
 
+    # Scraping du site web
+    print("🌐 Scraping du site web...")
+    scraper = SiteScraper(nom_entreprise, max_pages=20)
+    scraping_data = scraper.scrape()
+    resultats["resultats"]["scraping"] = scraping_data
+
     # Scans IP
     for ip in ip_list:
         print(f"➡️ Scan IP {ip}...")
@@ -60,7 +67,7 @@ def cyber_diag(nom_entreprise: str, siren: str, ip_list: list):
             "shodan": shodan_scan(ip, SHODAN_API_KEY)
         }
 
-    # Sauvegarde JSON (datetime => str)
+    # Sauvegarde JSON
     json_path = os.path.join(OUTPUT_DIR, f"diag_{siren}.json")
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(resultats, f, indent=2, ensure_ascii=False, default=str)
@@ -86,3 +93,4 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     cyber_diag(args.nom, args.siren, args.ips)
+
