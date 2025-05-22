@@ -1,4 +1,4 @@
-````markdown
+
 # CyberDiag : outil de diagnostic cybersécurité
 
 **CyberDiag** est un outil CLI Python qui réalise un diagnostic complet d’une entreprise en analysant :
