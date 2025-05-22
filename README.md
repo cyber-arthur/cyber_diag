@@ -32,7 +32,6 @@ N'oubliez pas de renseignez les clés APIs nécessaires à l'utilisation de Shod
 ```bash
 sudo echo "SHODAN_API_KEY=xxxx
 HUNTER_API_KEY=xxxx
-GREYNOISE_API_KEY=xxxx
 VT_API_KEY=xxxx
 " > .env
 ```
