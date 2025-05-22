@@ -67,7 +67,6 @@ Créez (ou mettez à jour) le fichier `.env` à la racine :
 ```dotenv
 SHODAN_API_KEY=ta_cle_shodan
 HUNTER_API_KEY=ta_cle_hunter
-GREYNOISE_API_KEY=ta_cle_greynoise    # facultatif
 VT_API_KEY=ta_cle_virustotal
 ```
 
