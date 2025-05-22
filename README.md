@@ -27,35 +27,48 @@ Les résultats sont exportés au format **JSON** et **PDF** (mise en page corpor
 
 ---
 
-## 📦 Installation
+````markdown
+# CyberDiag : outil de diagnostic cybersécurité
 
-### Prérequis système
+**CyberDiag** est un outil CLI Python qui réalise un diagnostic complet d’une entreprise en analysant :
+- son **domaine** web (WHOIS, DNS, certificat SSL/TLS, en-têtes HTTP)  
+- ses **adresses IP publiques** (scan Nmap, services, Shodan)  
+- ses **informations exposées** (OSINT via theHarvester, Hunter.io, scraping du site web)  
+
+Les résultats sont exportés au format **JSON** et **PDF** (mise en page corporate, fuseau Europe/Paris).
+
+---
+
+## 🚀 Fonctionnalités
+
+- 🔍 **Scan IP** (Nmap & Shodan)  
+- 🌐 **Recherche DNS** (A, MX, NS, TXT…)  
+- 🕵️‍♂️ **OSINT** passif via **theHarvester**  
+- 📬 **Emails** collectés avec **Hunter.io**  
+- 🛡️ **Analyse de domaine** via **VirusTotal v3**  
+- 🔒 **Certificat SSL/TLS** & **Headers HTTP**  
+- 🕸️ **Scraping** du site (contacts, téléphones, adresses, noms/prénoms, réseaux sociaux courts)  
+- 📄 **Rapports** JSON & PDF  
+
+---
+
+## 📦 Installation en une commande
+
+Cette unique ligne installe les dépendances système, clone le dépôt, et lance la configuration :
 
 ```bash
-sudo apt update && sudo apt install -y \
-  python3 python3-pip python3-venv python3-full \
-  nmap git dnsutils
+sudo apt update \
+  && sudo apt install -y python3 python3-pip python3-venv python3-full nmap git dnsutils \
+  && git clone https://github.com/cyber-arthur/cyber_diag.git \
+  && cd cyber_diag \
+  && chmod +x cyber_diag.sh \
+  && ./cyber_diag.sh
 ````
 
-### Récupération du dépôt
-
-```bash
-git clone https://github.com/cyber-arthur/cyber_diag.git
-cd cyber_diag
-sudo chown -R $USER:$USER .
-```
-
-### Installation & initialisation
-
-```bash
-chmod +x cyber_diag.sh
-./cyber_diag.sh
-```
-
-Le script va :
+Le script `cyber_diag.sh` va ensuite :
 
 1. Créer et activer un environnement virtuel `venv/`
-2. Installer les dépendances Python listées dans `requirements.txt`
+2. Installer les dépendances Python (`requirements.txt`)
 3. Cloner `theHarvester` et installer ses dépendances
 
 ---
