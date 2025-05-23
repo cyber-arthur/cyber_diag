@@ -9,37 +9,27 @@ from bs4 import BeautifulSoup
 EMAIL_REGEX = re.compile(
     r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+"
 )
-# Numéros FR : +33 ou 0X en blocs de 2 chiffres
+# Numéros FR : +33 ou 0X avec groupements en 2 chiffres
 PHONE_REGEX = re.compile(
     r"(?:\+33|0)[\s\.\-]?[1-9](?:[\s\.\-]?\d{2}){4}"
 )
-# Adresses FR classiques (rue, bd, av…, code postal, ville)
+# Adresses FR classiques (rue, avenue, bd, etc.) avec code postal + ville
 ADDRESS_REGEX = re.compile(
     r"\d{1,4}\s+(?:[A-Za-zÀ-ÖØ-öø-ÿ’']+\s?){1,7}\s+"
-    r"(?:Street|St|Avenue|Ave|Boulevard|Bd|Road|Rd|Rue|Allée|Impasse|ZAC)\.?"
+    r"(?:Street|St|Avenue|Ave|Boulevard|Bd|Road|Rd|Rue|Allée|Impasse|ZAC|BAT)\.?"
     r"[,\s]+\d{5}\s+[A-Za-zÀ-ÖØ-öø-ÿ\-\s]+",
     re.IGNORECASE
 )
-# Fallback : toute ligne contenant un code postal ET un mot-clef de voie
-POSTAL_LINE = re.compile(r".{0,200}\b\d{5}\b.{0,200}")
-STREET_KEYWORDS = {
-    'rue','av','avenue','bd','boulevard','impasse',
-    'allée','zac','bat','road','street','st'
-}
-# Détection de vrais noms/prénoms (2 à 3 mots, Maj+min)
-NAME_REGEX = re.compile(
-    r"\b[A-ZÉÈÀÂÎÙÜÄÖ][a-zéèàâîùüäö]+"
-    r"(?:\s[A-ZÉÈÀÂÎÙÜÄÖ][a-zéèàâîùüäö]+){1,2}\b"
-)
-
 SOCIAL_DOMAINS = {
     "facebook.com", "twitter.com", "linkedin.com",
     "instagram.com", "youtube.com", "github.com"
 }
+# Noms/prénoms : 2 à 3 mots, Majuscule+minuscules
+NAME_REGEX = re.compile(r"^[A-Z][a-z]+(?:\s[A-Z][a-z]+){1,2}$")
 
 class SiteScraper:
     def __init__(self, base_url: str, max_pages: int = 500, delay: float = 0.2):
-        # Normalisation du domaine (on garde scheme://netloc)
+        # Normalisation du domaine (scheme://netloc)
         if not base_url.startswith(("http://", "https://")):
             base_url = f"https://{base_url}"
         parsed = urlparse(base_url)
@@ -67,8 +57,8 @@ class SiteScraper:
 
     def scrape(self) -> dict:
         """
-        Lance le crawl sur jusqu'à max_pages pages internes
-        et collecte : emails, téléphones, adresses, noms, socials.
+        Lance le crawl sur jusqu'à max_pages pages internes,
+        extrait emails, téléphones, adresses, noms/prénoms, socials.
         """
         while self.to_visit and len(self.visited) < self.max_pages:
             url = self.to_visit.popleft()
@@ -76,66 +66,67 @@ class SiteScraper:
                 continue
             try:
                 resp = self.session.get(url, timeout=5)
-                ct = resp.headers.get("Content-Type", "")
-                if resp.status_code != 200 or "html" not in ct:
+                content_type = resp.headers.get("Content-Type", "")
+                if resp.status_code != 200 or "html" not in content_type:
                     continue
                 self.visited.add(url)
                 soup = BeautifulSoup(resp.text, 'html.parser')
                 
+                # 1) extraction brute
                 text = soup.get_text(separator=' ')
                 self._extract_textual(text)
                 
-                # extraction d'adresses
+                # 2) extraction dans balises
                 self._extract_from_address_tags(soup)
                 self._extract_microformats_address(soup)
-                self._extract_postal_lines(text)
-                
+                self._extract_address_lines(soup)         # <-- nouvelle étape
                 self._extract_tel_links(soup)
                 self._extract_names(soup)
                 self._extract_socials(soup)
                 
+                # 3) liens internes
                 self._enqueue_links(soup, url)
+                
                 time.sleep(self.delay)
             except requests.RequestException:
                 continue
 
-        # Retours en listes triées
+        # Retourne des listes triées
         return {k: sorted(v) for k, v in self.results.items()}
 
     def _normalize(self, href: str, base: str) -> str | None:
         href = urldefrag(href)[0]
         abs_url = urljoin(base, href)
         p = urlparse(abs_url)
-        if p.scheme not in ("http", "https") or p.netloc.lower() != self.base_netloc:
+        if p.scheme not in ("http", "https"):
+            return None
+        if p.netloc.lower() != self.base_netloc:
             return None
         clean = f"{p.scheme}://{p.netloc}{p.path}".rstrip('/')
         return clean
 
     def _extract_textual(self, text: str):
-        # emails
+        """Emails, téléphones, adresses via regex dans le texte brut."""
         for m in EMAIL_REGEX.findall(text):
             self.results['emails'].add(m.strip())
-        # téléphones
         for m in PHONE_REGEX.findall(text):
             num = re.sub(r"[^\d+]", "", m)
-            if len(re.sub(r"\D", "", num)) >= 8:
-                self.results['phones'].add(num)
-        # adresses classiques
+            self.results['phones'].add(num)
         for m in ADDRESS_REGEX.findall(text):
             self.results['addresses'].add(m.strip())
-        # noms/prénoms dans le texte global
-        for m in NAME_REGEX.findall(text):
-            self.results['names'].add(m.strip())
 
     def _extract_from_address_tags(self, soup: BeautifulSoup):
-        # <address>…</address>
+        """Récupère l’intérieur des <address>…</address>."""
         for tag in soup.find_all('address'):
             txt = tag.get_text(separator=' ', strip=True)
             for m in ADDRESS_REGEX.findall(txt):
                 self.results['addresses'].add(m.strip())
 
     def _extract_microformats_address(self, soup: BeautifulSoup):
-        # schema.org PostalAddress
+        """
+        Recherche les microformats Schema.org PostalAddress
+        (<div itemscope itemtype="…PostalAddress">).
+        """
         for addr in soup.select('[itemtype*="PostalAddress"]'):
             parts = []
             for prop in ("streetAddress","postalCode","addressLocality"):
@@ -145,17 +136,22 @@ class SiteScraper:
             if parts:
                 self.results['addresses'].add(" ".join(parts))
 
-    def _extract_postal_lines(self, text: str):
-        # fallback : toute ligne contenant un code postal + mot-clef de voie
-        for line in text.splitlines():
-            if POSTAL_LINE.search(line):
-                low = line.lower()
-                if any(k in low for k in STREET_KEYWORDS):
-                    cand = line.strip()
-                    if 10 < len(cand) < 200 and "http" not in cand:
-                        self.results['addresses'].add(cand)
+    def _extract_address_lines(self, soup: BeautifulSoup):
+        """
+        Parcourt chaque ligne de texte, garde celles contenant
+        un code postal et un type de voie (Rue, Av, ZAC, BAT…).
+        """
+        lines = soup.get_text(separator='\n').split('\n')
+        for line in lines:
+            if re.search(r'\b\d{5}\b', line):
+                if re.search(r'\b(?:Rue|Av(?:enue)?|Boulevard|Bd|Impasse|Allée|ZAC|BAT)\b', line, re.IGNORECASE):
+                    cleaned = line.strip()
+                    # filtrage longueur raisonnable
+                    if 10 < len(cleaned) < 120:
+                        self.results['addresses'].add(cleaned)
 
     def _extract_tel_links(self, soup: BeautifulSoup):
+        """Récupère les liens <a href="tel:…">."""
         for a in soup.select('a[href^="tel:"]'):
             tel = a['href'].split(':',1)[1]
             num = re.sub(r"[^\d+]", "", tel)
@@ -163,12 +159,16 @@ class SiteScraper:
                 self.results['phones'].add(num)
 
     def _extract_names(self, soup: BeautifulSoup):
-        # noms/prénoms en 2–3 mots via NAME_REGEX
-        for txt in soup.stripped_strings:
+        """
+        Heuristique stricte : 2 à 3 mots, Majuscule+minuscules.
+        """
+        for el in soup.find_all(text=True):
+            txt = el.strip()
             if NAME_REGEX.match(txt):
-                self.results['names'].add(txt.strip())
+                self.results['names'].add(txt)
 
     def _extract_socials(self, soup: BeautifulSoup):
+        """Liens courts vers réseaux sociaux."""
         for a in soup.find_all('a', href=True):
             href = a['href'].strip()
             for domain in SOCIAL_DOMAINS:
@@ -181,6 +181,7 @@ class SiteScraper:
                     break
 
     def _enqueue_links(self, soup: BeautifulSoup, current_url: str):
+        """Ajoute les liens internes non visités à la file."""
         for a in soup.find_all('a', href=True):
             norm = self._normalize(a['href'], current_url)
             if norm and norm not in self.visited and norm not in self.to_visit:
