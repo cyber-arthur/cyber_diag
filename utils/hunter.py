@@ -1,7 +1,6 @@
 import requests
 
 def hunter_search(domain, api_key):
-    print(f"🔍 Interrogation de Hunter.io pour {domain}...")
     url = f"https://api.hunter.io/v2/domain-search?domain={domain}&api_key={api_key}"
     response = requests.get(url)
     if response.status_code == 200:
