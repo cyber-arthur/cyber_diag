@@ -31,6 +31,7 @@ pip install -r requirements.txt
 cd ..
 pip install --upgrade pip
 pip install -r $REQUIREMENTS
+python -m spacy download fr_core_news_sm
 
 # --- Étape 4 : Créer .env si manquant ---
 if [ ! -f ".env" ]; then
@@ -49,4 +50,4 @@ fi
 echo -e "\n✅ Installation terminée !"
 echo "➡️ Vous pouvez maintenant lancer :"
 echo "   source venv/bin/activate"
-echo "   python main.py --nom entreprise.fr --siren 123456789 --ips 1.2.3.4 5.6.7.8"
+echo "   python main.py --nom entreprise.fr"

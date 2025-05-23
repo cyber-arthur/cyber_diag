@@ -6,3 +6,5 @@ fpdf
 matplotlib
 python-whois
 beautifulsoup4
+phonenumbers 
+spacy
