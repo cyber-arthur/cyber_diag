@@ -1,6 +1,6 @@
 import argparse
 import json
-import random   
+import random
 import os
 from dotenv import load_dotenv
 
@@ -109,4 +109,3 @@ if __name__ == "__main__":
         ip_list = args.ips
 
     cyber_diag(args.nom, siren, ip_list)
-
