@@ -137,7 +137,7 @@ class PDF(FPDF):
         if self.page_no() > 2:
             self.set_font(FONT_FAMILY, 'B', 12)
             self.set_text_color(*CORPORATE_COLOR)
-            self.cell(0, 6, self.sanitize("Cyber SES – Sécurisation TPE/PME"), ln=1, align='R')
+            self.cell(0, 6, self.sanitize("Cyber SES Sécurisation TPE/PME"), ln=1, align='R')
             y = self.get_y()
             self.set_draw_color(*CORPORATE_COLOR)
             self.line(10, y, self.w-10, y)
