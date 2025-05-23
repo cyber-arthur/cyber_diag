@@ -24,8 +24,8 @@ SOCIAL_DOMAINS = {
     "facebook.com", "twitter.com", "linkedin.com",
     "instagram.com", "youtube.com", "github.com"
 }
-# Noms/prénoms : 2 à 3 mots, Majuscule+minuscules
-NAME_REGEX = re.compile(r"^[A-Z][a-z]+(?:\s[A-Z][a-z]+){1,2}$")
+# Balises à inspecter pour les noms/prénoms
+NAME_TAGS = ['h1', 'h2', 'h3', 'span', 'p']
 
 class SiteScraper:
     def __init__(self, base_url: str, max_pages: int = 500, delay: float = 0.2):
@@ -78,8 +78,9 @@ class SiteScraper:
                 
                 # 2) extraction dans balises
                 self._extract_from_address_tags(soup)
+                self._extract_address_from_class(soup)         # nouvelle extraction
                 self._extract_microformats_address(soup)
-                self._extract_address_lines(soup)         # <-- nouvelle étape
+                self._extract_address_lines(soup)
                 self._extract_tel_links(soup)
                 self._extract_names(soup)
                 self._extract_socials(soup)
@@ -122,6 +123,21 @@ class SiteScraper:
             for m in ADDRESS_REGEX.findall(txt):
                 self.results['addresses'].add(m.strip())
 
+    def _extract_address_from_class(self, soup: BeautifulSoup):
+        """
+        Recherche des adresses dans les blocs dont la classe ou l'id 
+        contient 'adresse', souvent utilisé pour les coordonnées postales.
+        """
+        pattern = re.compile(r'adresse', re.IGNORECASE)
+        for el in soup.find_all(attrs={'class': pattern}):
+            txt = el.get_text(separator=' ', strip=True)
+            for m in ADDRESS_REGEX.findall(txt):
+                self.results['addresses'].add(m.strip())
+        for el in soup.find_all(attrs={'id': pattern}):
+            txt = el.get_text(separator=' ', strip=True)
+            for m in ADDRESS_REGEX.findall(txt):
+                self.results['addresses'].add(m.strip())
+
     def _extract_microformats_address(self, soup: BeautifulSoup):
         """
         Recherche les microformats Schema.org PostalAddress
@@ -143,12 +159,12 @@ class SiteScraper:
         """
         lines = soup.get_text(separator='\n').split('\n')
         for line in lines:
-            if re.search(r'\b\d{5}\b', line):
-                if re.search(r'\b(?:Rue|Av(?:enue)?|Boulevard|Bd|Impasse|Allée|ZAC|BAT)\b', line, re.IGNORECASE):
-                    cleaned = line.strip()
-                    # filtrage longueur raisonnable
-                    if 10 < len(cleaned) < 120:
-                        self.results['addresses'].add(cleaned)
+            if re.search(r'\b\d{5}\b', line) and \
+               re.search(r'\b(?:Rue|Av(?:enue)?|Boulevard|Bd|Impasse|Allée|ZAC|BAT)\b',
+                         line, re.IGNORECASE):
+                cleaned = line.strip()
+                if 10 < len(cleaned) < 120:
+                    self.results['addresses'].add(cleaned)
 
     def _extract_tel_links(self, soup: BeautifulSoup):
         """Récupère les liens <a href="tel:…">."""
@@ -160,12 +176,17 @@ class SiteScraper:
 
     def _extract_names(self, soup: BeautifulSoup):
         """
-        Heuristique stricte : 2 à 3 mots, Majuscule+minuscules.
+        Heuristique : phrases courtes capitalisées dans tags clés.
+        Ex: 'Romain Cerutti', 'Frank Karlitschek'
         """
-        for el in soup.find_all(text=True):
-            txt = el.strip()
-            if NAME_REGEX.match(txt):
-                self.results['names'].add(txt)
+        for tag in NAME_TAGS:
+            for el in soup.find_all(tag):
+                txt = el.get_text(strip=True)
+                words = txt.split()
+                if 1 < len(words) <= 3 and all(w and w[0].isupper() for w in words):
+                    # on élimine les titres génériques
+                    if not re.search(r'\b(Page|Retour|Découvrez|Télécharger|Recrutements)\b', txt, re.IGNORECASE):
+                        self.results['names'].add(txt)
 
     def _extract_socials(self, soup: BeautifulSoup):
         """Liens courts vers réseaux sociaux."""
@@ -181,7 +202,7 @@ class SiteScraper:
                     break
 
     def _enqueue_links(self, soup: BeautifulSoup, current_url: str):
-        """Ajoute les liens internes non visités à la file."""
+        """Ajoute les liens internes non visités à la queue."""
         for a in soup.find_all('a', href=True):
             norm = self._normalize(a['href'], current_url)
             if norm and norm not in self.visited and norm not in self.to_visit:
