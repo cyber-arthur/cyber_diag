@@ -185,7 +185,6 @@ Toute reproduction, modification ou diffusion sans autorisation écrite est inte
 
 Contact : [arthur.nguyen@cyberses.fr](mailto:arthur.nguyen@cyberses.fr)
 
-````
 
 > _Dernière mise à jour :_ **mai 2025**  
 > _Fuseau horaire du rapport PDF :_ **Europe/Paris**  
@@ -193,4 +192,3 @@ Contact : [arthur.nguyen@cyberses.fr](mailto:arthur.nguyen@cyberses.fr)
 > _Police corporate :_ **Helvetica**  
 > _Couleurs :_ `#003366` (corporate)  
 
-````
