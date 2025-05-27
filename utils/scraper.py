@@ -175,10 +175,6 @@ class SiteScraper:
                 self.results['phones'].add(num)
 
     def _extract_names(self, soup: BeautifulSoup):
-        """
-        Heuristique : phrases courtes capitalisées dans tags clés.
-        Ex: 'Romain Cerutti', 'Frank Karlitschek'
-        """
         for tag in NAME_TAGS:
             for el in soup.find_all(tag):
                 txt = el.get_text(strip=True)
