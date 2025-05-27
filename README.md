@@ -1,162 +1,194 @@
+# CyberDiag : Outil de diagnostic cybersécurité
 
-# CyberDiag : outil de diagnostic cybersécurité
+**CyberDiag** est un outil CLI Python qui automatise le diagnostic de la posture en ligne d’une entreprise, en combinant :
 
-**CyberDiag** est un outil CLI Python qui réalise un diagnostic complet d’une entreprise en analysant :
-- son **domaine** web (WHOIS, DNS, certificat SSL/TLS, en-têtes HTTP)  
-- ses **adresses IP publiques** (scan Nmap, services, Shodan)  
-- ses **informations exposées** (OSINT via theHarvester, Hunter.io, scraping du site web)  
+1. **Analyse du domaine**  
+   - WHOIS (registrar, dates, owner)  
+   - DNS (A, MX, NS, TXT…)  
+   - Certificat SSL/TLS (émetteur, sujet, validité)  
+   - En-têtes HTTP (HSTS, CSP, X-Frame-Options…)
 
-Les résultats sont exportés au format **JSON** et **PDF** (mise en page corporate, fuseau Europe/Paris).
+2. **Scan des IP publiques**  
+   - **Nmap** (`-sV -Pn -T4`) pour détection de services  
+   - **Shodan** (API) pour métadonnées : OS, organisation, ports, tags
 
----
+3. **Collecte d’informations exposées**  
+   - **theHarvester** pour e-mails, noms d’hôtes, sous-domaines  
+   - **Hunter.io** pour listes d’adresses e-mail et score de confiance  
+   - **VirusTotal v3** pour réputation, statistiques de détection, verdicts  
+   - **Scraping** flexible du site web (emails, téléphones, adresses, noms/prénoms, liens réseaux sociaux “courts”)
 
-## 🚀 Fonctionnalités
-
-- 🔍 **Scan IP**  
-  - **Nmap** (`-sV`)  
-  - **Shodan** (API)  
-- 🌐 **Recherche DNS** (A, MX, NS, TXT…)  
-- 🕵️‍♂️ **OSINT** passif via **theHarvester**  
-- 📬 **Emails** collectés avec **Hunter.io**  
-- 🛡️ **Analyse de domaine** via **VirusTotal v3** (stats, verdicts, réputation)  
-- 🔒 **Certificat SSL/TLS** et **Headers HTTP**  
-- 🕸️ **Scraping** du site (emails, téléphones, adresses postales, noms/prénoms, liens réseaux sociaux courts)  
-- 📄 **Rapports**  
-  - **JSON** structuré (`diag_<SIREN>.json`)  
-  - **PDF** professionnel (`diag_<SIREN>.pdf`)  
+4. **Export des résultats**  
+   - **JSON** structuré (`rapports/diag_<SIREN>.json`)  
+   - **PDF** soigné (couverture, sommaire, sections détaillées, graphiques)  
 
 ---
 
-## 📦 Installation en une commande
+## 🚀 Fonctionnalités détaillées
 
-Cette unique ligne installe les dépendances système, clone le dépôt, et lance la configuration :
+| Fonctionnalité              | Détail                                                                                               |
+|-----------------------------|------------------------------------------------------------------------------------------------------|
+| **DNS**                     | A, AAAA, MX, NS, TXT… via `utils/dns_tools.py`                                                       |
+| **OSINT passif**            | theHarvester (wrapper dans `utils/osint.py`)                                                         |
+| **Hunter.io**               | Recherche et scoring d’emails (`utils/hunter.py`)                                                    |
+| **VirusTotal v3**           | Statistiques (malicious, suspicious, harmless), réputation (`utils/osint_advanced.py`)               |
+| **Certificat SSL/TLS**      | Récupération via socket, parsing des RDN (`utils/exporter.py`)                                       |
+| **Headers HTTP**            | Requête HEAD pour HSTS, CSP, X-Frame-Options…                                                         |
+| **Scan IP**                 | Nmap (`utils/scanner.py`) & Shodan API                                                                |
+| **Scraper**                 | Crawl jusqu’à _N_ pages internes, extrait :                                                         |
+|                             | • Emails, téléphones (+ liens `tel:`)                                                                |
+|                             | • Adresses postales (regex, `<address>`, microformats Schema.org, lignes avec code postal)         |
+|                             | • Noms / prénoms (heuristique stricte, Maj+min, 2–3 mots)                                           |
+|                             | • Liens réseaux sociaux “courts” (LinkedIn, Facebook, Instagram, Twitter)                            |
+| **Rapports**                | • JSON complet, horodaté<br>• PDF avec couverture, sommaire, sections numérotées, graphiques (ports) |
+
+---
+
+## 📦 Installation en une seule commande
 
 ```bash
 sudo apt update \
-  && sudo apt install -y python3 python3-pip python3-venv python3-full nmap git dnsutils \
+  && sudo apt install -y python3 python3-venv python3-pip python3-full nmap git dnsutils \
   && git clone https://github.com/cyber-arthur/cyber_diag.git \
   && cd cyber_diag \
   && chmod +x cyber_diag.sh \
   && ./cyber_diag.sh
 ````
 
-Le script `cyber_diag.sh` va ensuite :
+Le script `cyber_diag.sh` :
 
-1. Créer et activer un environnement virtuel `venv/`
-2. Installer les dépendances Python (`requirements.txt`)
-3. Cloner `theHarvester` et installer ses dépendances
+1. **Crée** et **active** `venv/`
+2. **Installe** les dépendances Python (`requirements.txt`)
+3. **Clone** et configure **theHarvester**
 
 ---
 
 ## 🔧 Configuration
 
-Créez (ou mettez à jour) le fichier `.env` à la racine :
+À la racine du projet, créez un fichier **`.env`** :
 
 ```dotenv
-SHODAN_API_KEY=ta_cle_shodan
-HUNTER_API_KEY=ta_cle_hunter
-VT_API_KEY=ta_cle_virustotal
+SHODAN_API_KEY=VotreCleShodan
+HUNTER_API_KEY=VotreCleHunter
+VT_API_KEY=VotreCleVirusTotal
 ```
+
+> Si `VT_API_KEY` n’est pas défini, le script s’interrompt.
 
 ---
 
 ## 🎬 Utilisation
 
-Activez l’environnement et lancez le diagnostic :
+1. **Activez** l’environnement virtuel :
 
-```bash
-source venv/bin/activate
-python main.py \
-  --nom   entreprise.fr \
-  --siren 123456789 \
-  --ips   192.0.2.1 203.0.113.5
-```
+   ```bash
+   source venv/bin/activate
+   ```
 
-* `--nom`   : nom de domaine à analyser
-* `--siren` : numéro SIREN de l’entreprise
-* `--ips`   : liste d’adresses IP publiques
+2. **Lancez** le diagnostic :
 
-À la fin, vous trouverez dans `rapports/` :
+   ```bash
+   python main.py \
+     --nom   entreprise.fr \
+     --siren 123456789 \
+     --ips   192.0.2.1 203.0.113.5
+   ```
 
-* `diag_<SIREN>.json`
-* `diag_<SIREN>.pdf`
+   * `--nom`     : domaine à analyser (ex. `monentreprise.fr`)
+   * `--siren` : numéro SIREN (9 chiffres) — généré aléatoirement sinon
+   * `--ips`    : liste d’IP publiques — 8.8.8.8 par défaut
+
+3. **Consultez** le dossier `rapports/` :
+
+   * `diag_<SIREN>.json`
+   * `diag_<SIREN>.pdf`
 
 ---
 
-## 📂 Structure du projet
+## 🗂 Structure du projet
 
 ```
 CYBER_DIAG/
-├─ main.py             # Point d’entrée CLI
-├─ cyber_diag.sh       # Script d’installation et d’exécution
+├─ main.py             # CLI, orchestration de tous les modules
+├─ cyber_diag.sh       # Installation & bootstrap (venv, deps, theHarvester)
 ├─ requirements.txt    # Dépendances Python
-├─ README.md           # Cette documentation
+├─ README.md           # Documentation (vous y êtes !)
 └─ utils/              # Modules utilitaires
-   ├─ dns_tools.py         # Requêtes DNS
-   ├─ exporter.py          # Génération JSON+PDF & graphismes
-   ├─ helpers.py           # Fonctions partagées
-   ├─ hunter.py            # Intégration Hunter.io
+   ├─ dns_tools.py         # Fonctions DNS
+   ├─ exporter.py          # JSON/PDF, graphiques (FPDF + matplotlib)
+   ├─ helpers.py           # Helpers shell, formatage
+   ├─ hunter.py            # API Hunter.io
    ├─ osint.py             # Wrapper theHarvester
    ├─ osint_advanced.py    # Client VirusTotal v3
-   ├─ scanner.py           # nmap_scan, shodan_scan
-   └─ scraper.py           # Crawl & extraction (emails, téléphones, adresses, noms, socials)
+   ├─ scanner.py           # nmap_scan(), shodan_scan()
+   └─ scraper.py           # SiteScraper (crawl & extraction)
 ```
 
 ---
 
-## ⚙️ Description des modules
+## ⚙️ Détails des modules
 
-* **`main.py`**
-  Orchestre :
+### `main.py`
 
-  1. DNS lookup
-  2. OSINT Harvester
-  3. Hunter.io
-  4. VirusTotal
-  5. Scan IP (Nmap + Shodan)
-  6. Scraping site web
-  7. Sauvegarde JSON + génération PDF
+Orchestre le flow :
 
-* **`utils/dns_tools.py`**
-  Fonctions pour interroger A, MX, NS, TXT, etc.
+1. DNS
+2. OSINT (theHarvester, Hunter)
+3. VirusTotal
+4. Scrans IP (Nmap + Shodan)
+5. Scraping du site
+6. Export JSON + PDF
 
-* **`utils/hunter.py`**
-  Wrapper API Hunter.io pour récupérer les e-mails du domaine.
+### `utils/dns_tools.py`
 
-* **`utils/osint.py`**
-  Exécution de `theHarvester` et extraction des résultats.
+— *dns\_lookup(domain)* : A, AAAA, MX, NS, TXT, SOA…
 
-* **`utils/osint_advanced.py`**
-  Client VirusTotal v3 (stats, verdicts, réputation, catégories).
+### `utils/hunter.py`
 
-* **`utils/scanner.py`**
+— *hunter\_search(domain, api\_key)* : liste d’e-mails, score de confiance
 
-  * `nmap_scan(ip)`
-  * `shodan_scan(ip, api_key)`
+### `utils/osint.py`
 
-* **`utils/scraper.py`**
-  `SiteScraper` crawl jusqu’à N pages internes et extrait via regex :
+— Exécution locale de `theHarvester`, récupération texte brut
 
-  * Emails, téléphones, adresses FR
-  * Noms/prénoms heuristiques
-  * Liens réseaux sociaux courts
+### `utils/osint_advanced.py`
 
-* **`utils/exporter.py`**
+— Client officiel VT v3 (requêtes */domains/{domain}*)
 
-  * Récupération certificat TLS & headers HTTP
-  * Nettoyage OSINT
-  * Génération du schéma de ports (barres horizontales)
-  * Classe `PDF` (FPDF) pour couverture, sommaire, sections, encodage Latin-1
-  * Fonction `export_pdf()` assemble toutes les sections et crée le PDF
+### `utils/scanner.py`
+
+* **nmap\_scan(ip)** : `nmap -T4 -Pn -sV`
+* **shodan\_scan(ip, key)** : métadonnées host
+
+### `utils/scraper.py`
+
+Classe `SiteScraper(base_url, max_pages)` :
+
+* Crawl interne (`requests` + `BeautifulSoup`)
+* Regex & balises pour Emails, Téléphones, Adresses (regex/microformats/`<address>`/lignes), Noms-Prénoms, Liens sociaux courts
+
+### `utils/exporter.py`
+
+* **fetch\_certificate\_info(domain)** via socket + SSL
+* **fetch\_http\_headers(domain)** via HEAD
+* **clean\_osint\_text(text)** filtre theHarvester
+* **generate\_ports\_chart(ips\_data)** (barres horizontales)
+* **PDF** (FPDF) : couverture, sommaire, sections, encodage Latin-1
+* **export\_pdf(resultats, siren, outdir)** assemble tout et génère `diag_<SIREN>.pdf`
 
 ---
 
-## ⚠️ Sécurité & Licence
+## 🔒 Sécurité & Licence
 
-🛑 **Usage réservé** : ce projet est **propriétaire**.
-Toute reproduction, modification ou diffusion sans accord écrit est **interdite**.
+🛑 **Usage interne & propriétaire**
+Toute reproduction, modification ou diffusion sans autorisation écrite est interdite.
 
 Contact : [arthur.nguyen@cyberses.fr](mailto:arthur.nguyen@cyberses.fr)
 
-```
-```
+
+> _Dernière mise à jour :_ **mai 2025**  
+> _Fuseau horaire du rapport PDF :_ **Europe/Paris**  
+> _Format de date/heure :_ `%d %B %Y %H:%M %Z`  
+> _Police corporate :_ **Helvetica**  
+> _Couleurs :_ `#003366` (corporate)  
+
