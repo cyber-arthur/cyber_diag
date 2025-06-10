@@ -186,7 +186,7 @@ Toute reproduction, modification ou diffusion sans autorisation écrite est inte
 Contact : [arthur.nguyen@cyberses.fr](mailto:arthur.nguyen@cyberses.fr)
 
 
-> _Dernière mise à jour :_ **mai 2025**  
+> _Dernière mise à jour :_ **juin 2025**  
 > _Fuseau horaire du rapport PDF :_ **Europe/Paris**  
 > _Format de date/heure :_ `%d %B %Y %H:%M %Z`  
 > _Police corporate :_ **Helvetica**  
