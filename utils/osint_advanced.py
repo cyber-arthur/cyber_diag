@@ -7,15 +7,21 @@ import requests
 import whois
 from dotenv import load_dotenv
 
-# Chargement de la clé d'API depuis .env
+# =================== Chargement de l'environnement ===================
 load_dotenv()
 VT_API_KEY = os.getenv("VT_API_KEY")
+PAPPERS_API_KEY = os.getenv("PAPPERS_API_KEY")
+
 if not VT_API_KEY:
     raise RuntimeError("Il faut définir VT_API_KEY dans votre .env")
+if not PAPPERS_API_KEY:
+    raise RuntimeError("Il faut définir PAPPERS_API_KEY dans votre .env")
 
-# Config logging
+# =================== Logging ===================
 logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
 
+
+# =================== VirusTotal Client ===================
 class VirusTotalClient:
     BASE_URL = "https://www.virustotal.com/api/v3"
     RATE_LIMIT_SLEEP = 15
@@ -27,7 +33,7 @@ class VirusTotalClient:
     def _get(self, path: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         url = f"{self.BASE_URL}{path}"
         resp = self.session.get(url, params=params, timeout=10)
-        if resp.status_code == 429:  # rate limit
+        if resp.status_code == 429:
             logging.warning("Rate limit hit, sleeping %s seconds", self.RATE_LIMIT_SLEEP)
             time.sleep(self.RATE_LIMIT_SLEEP)
             return self._get(path, params)
@@ -38,12 +44,10 @@ class VirusTotalClient:
         return self._get(f"/domains/{domain}")
 
     def domain_analysis_stats(self, domain: str) -> Dict[str, int]:
-        data = self.domain_report(domain).get("data", {}).get("attributes", {})
-        return data.get("last_analysis_stats", {})
+        return self.domain_report(domain).get("data", {}).get("attributes", {}).get("last_analysis_stats", {})
 
     def domain_analysis_results(self, domain: str) -> Dict[str, Any]:
-        data = self.domain_report(domain).get("data", {}).get("attributes", {})
-        return data.get("last_analysis_results", {})
+        return self.domain_report(domain).get("data", {}).get("attributes", {}).get("last_analysis_results", {})
 
     def domain_reputation(self, domain: str) -> int:
         return self.domain_report(domain)["data"]["attributes"].get("reputation", 0)
@@ -74,13 +78,12 @@ class VirusTotalClient:
         return subdomains[:max_results]
 
 
+# =================== OSINT Client ===================
 class OSINTClient:
-    """Combine VT and WHOIS lookups for enriched domain intelligence"""
     def __init__(self, vt_client: VirusTotalClient):
         self.vt = vt_client
 
     def get_whois_info(self, domain: str) -> Dict[str, Any]:
-        """Utilise python-whois pour récupérer les données WHOIS complètes"""
         try:
             w = whois.whois(domain)
             return {
@@ -96,7 +99,6 @@ class OSINTClient:
             return {}
 
     def check_domain(self, domain: str) -> Dict[str, Any]:
-        """Retourne un dict structuré mêlant VT et WHOIS"""
         vt_data = self.vt.domain_report(domain).get("data", {}).get("attributes", {})
         whois_info = self.get_whois_info(domain)
 
@@ -117,23 +119,21 @@ class OSINTClient:
             "whois_status": whois_info.get("status", [])
         }
 
+
+# =================== Pappers API ===================
 def get_company_director(siren: str) -> dict:
     """
     Interroge l’API Pappers pour récupérer les infos du dirigeant principal via le SIREN.
     """
-    api_key = os.getenv("PAPPERS_API_KEY")
-    if not api_key:
-        raise RuntimeError("Il faut définir PAPPERS_API_KEY dans votre .env")
-
     try:
         url = "https://api.pappers.fr/v2/entreprise"
-        params = {"api_token": api_key, "siren": siren}
+        params = {"api_token": PAPPERS_API_KEY, "siren": siren}
         response = requests.get(url, params=params, timeout=10)
         response.raise_for_status()
         data = response.json()
         dirigeants = data.get("dirigeants", [])
         if dirigeants:
-            d = dirigeants[0]  # On prend le premier dirigeant
+            d = dirigeants[0]
             return {
                 "nom": d.get("nom", "N/A"),
                 "prenom": d.get("prenom", "N/A"),

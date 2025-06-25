@@ -14,9 +14,6 @@ from utils.scraper import SiteScraper
 from utils.exporter import export_pdf
 
 def normalize_domain(domain_input: str) -> str:
-    """
-    Extrait proprement le nom de domaine, sans schéma, 'www.' ni slash final.
-    """
     if "://" not in domain_input:
         domain_input = "https://" + domain_input
     parsed = urlparse(domain_input)
@@ -27,13 +24,17 @@ def normalize_domain(domain_input: str) -> str:
 
 # --- Chargement des clés d'API ---
 load_dotenv()
-SHODAN_API_KEY = os.getenv("SHODAN_API_KEY")
-HUNTER_API_KEY = os.getenv("HUNTER_API_KEY")
-VT_API_KEY     = os.getenv("VT_API_KEY")
+SHODAN_API_KEY     = os.getenv("SHODAN_API_KEY")
+HUNTER_API_KEY     = os.getenv("HUNTER_API_KEY")
+VT_API_KEY         = os.getenv("VT_API_KEY")
+PAPPERS_API_KEY    = os.getenv("PAPPERS_API_KEY")
+
 if not VT_API_KEY:
     raise RuntimeError("Il faut définir VT_API_KEY dans votre .env")
+if not PAPPERS_API_KEY:
+    raise RuntimeError("Il faut définir PAPPERS_API_KEY dans votre .env")
 
-# Instanciation des clients VT et OSINT
+# Instanciation des clients
 vt_client    = VirusTotalClient(VT_API_KEY)
 osint_client = OSINTClient(vt_client)
 
@@ -57,7 +58,13 @@ def cyber_diag(nom_entreprise: str, siren: str, ip_list: list):
         }
     }
 
-    # 2) Enrichissement WHOIS
+    # 2) Récupération du dirigeant via l’API Pappers
+    print("👤 Recherche du dirigeant via Pappers…")
+    directeur = get_company_director(siren)
+    print("[DEBUG] Dirigeant récupéré :", directeur)
+    resultats["dirigeant"] = directeur
+
+    # 3) Enrichissement WHOIS
     vt_data = resultats["resultats"]["virustotal"]
     resultats["resultats"]["virustotal"]["whois"] = {
         "registrar":       vt_data.get("whois_registrar",      "N/A"),
@@ -67,13 +74,13 @@ def cyber_diag(nom_entreprise: str, siren: str, ip_list: list):
         "name_servers":    vt_data.get("whois_name_servers",  [])
     }
 
-    # 3) Scraping du site web
+    # 4) Scraping du site web
     print("🌐 Scraping du site web…")
     scraper = SiteScraper(nom_entreprise, max_pages=20)
     scraping_data = scraper.scrape()
     resultats["resultats"]["scraping"] = scraping_data
 
-    # 4) Scans IP (si des IP sont spécifiées)
+    # 5) Scans IP (si IP fournies)
     if ip_list:
         for ip in ip_list:
             print(f"➡️ Scan IP {ip}…")
@@ -84,47 +91,35 @@ def cyber_diag(nom_entreprise: str, siren: str, ip_list: list):
     else:
         print("ℹ️ Aucune IP fournie → aucun scan réseau effectué.")
 
-    # 5) Sauvegarde JSON
+    # 6) Sauvegarde JSON
     json_path = os.path.join(OUTPUT_DIR, f"diag_{siren}.json")
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(resultats, f, indent=2, ensure_ascii=False, default=str)
     print(f"✅ Rapport JSON généré : {json_path}")
 
-    # 6) Génération PDF
+    # 7) Génération PDF
     export_pdf(resultats, siren, OUTPUT_DIR)
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Outil de diagnostic cybersécurité"
-    )
-    parser.add_argument(
-        "--nom", required=True,
-        help="Nom de domaine de l'entreprise (ex: entreprise.fr)"
-    )
-    parser.add_argument(
-        "--siren", required=False,
-        help="SIREN de l'entreprise (9 chiffres). Si absent, un SIREN aléatoire sera généré."
-    )
-    parser.add_argument(
-        "--ips", nargs="+", required=False,
-        help="Liste des IP publiques à analyser. Par défaut, scanne 8.8.8.8."
-    )
+    parser = argparse.ArgumentParser(description="Outil de diagnostic cybersécurité")
+    parser.add_argument("--nom", required=True, help="Nom de domaine de l'entreprise (ex: entreprise.fr)")
+    parser.add_argument("--siren", required=False, help="SIREN de l'entreprise (9 chiffres).")
+    parser.add_argument("--ips", nargs="+", required=False, help="Liste des IP publiques à analyser.")
     args = parser.parse_args()
 
     # Normalisation du domaine
     domain = normalize_domain(args.nom)
 
-    # SIREN par défaut si non fourni
+    # SIREN : auto-généré si non fourni
     if not args.siren:
         siren = str(random.randint(10**8, 10**9 - 1))
         print(f"Aucun SIREN fourni → génération d'un SIREN aléatoire : {siren}")
     else:
         siren = args.siren
 
-    # Liste d'IP (vide si aucune fournie)
+    # IPs à scanner
     ip_list = args.ips or []
     if not ip_list:
         print("Aucune IP fournie → le scan réseau sera ignoré.")
-
 
     cyber_diag(domain, siren, ip_list)
