@@ -287,9 +287,36 @@ def export_pdf(resultats: dict, siren: str, output_dir: str):
 
     # 5. Emails détectés
     pdf.section_title("5. Emails détectés")
+
     if emails:
+        pdf.section_text(
+            "Les adresses email suivantes ont été détectées via des sources publiques ou des outils d'OSINT. "
+            "Le pourcentage indiqué représente un indice de confiance basé sur la méthode de détection, "
+            "la fréquence d'apparition sur le web, et la cohérence avec le domaine de l'entreprise.\n"
+            "Un score élevé (≥ 80%) signifie que l'email est très probablement valide et actif."
+        )
+        pdf.add_newline()
+
         for idx, e in enumerate(emails, 1):
-            pdf.section_text(f"{idx}. {e.get('email')} ({e.get('confidence','N/C')}%)")
+            email = e.get("email")
+            confidence = e.get("confidence", "N/C")
+            source = e.get("source", None)
+
+            if isinstance(confidence, (int, float)):
+                if confidence >= 90:
+                    trust = "très haute fiabilité"
+                elif confidence >= 75:
+                    trust = "bonne fiabilité"
+                elif confidence >= 50:
+                    trust = "fiabilité moyenne"
+                else:
+                    trust = "faible fiabilité"
+                detail = f"{confidence}% - {trust}"
+            else:
+                detail = "niveau de confiance non communiqué"
+
+            source_text = f" | Source : {source}" if source else ""
+            pdf.section_text(f"{idx}. {email} ({detail}){source_text}")
     else:
         pdf.section_text("Aucun email détecté.")
 

@@ -9,7 +9,7 @@ from utils.dns_tools import dns_lookup
 from utils.hunter import hunter_search
 from utils.osint import osint_harvester
 from utils.scanner import nmap_scan, shodan_scan
-from utils.osint_advanced import VirusTotalClient, OSINTClient
+from utils.osint_advanced import VirusTotalClient, OSINTClient, get_company_director
 from utils.scraper import SiteScraper
 from utils.exporter import export_pdf
 
