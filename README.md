@@ -1,8 +1,8 @@
 # 🛡️ CyberDiag : Outil de diagnostic cybersécurité
 
-**CyberDiag** est un outil en ligne de commande (CLI) développé en Python, conçu pour aider les professionnels comme les débutants à évaluer rapidement l’exposition en ligne d’une entreprise. Il centralise des outils de cybersécurité reconnus dans un processus automatisé et produit des rapports lisibles, en JSON et PDF.
+**CyberDiag** est un outil en ligne de commande (CLI) développé en Python, conçu pour évaluer rapidement l’exposition en ligne d’une entreprise. Il centralise des outils de cybersécurité reconnus dans un processus automatisé et produit des rapports lisibles, en JSON et PDF.
 
-Que vous soyez auditeur, consultant, analyste SOC, ou simplement curieux de savoir ce que révèle Internet sur un domaine, **CyberDiag** vous guide étape par étape.
+**CyberDiag** vous guide étape par étape.
 
 ---
 
