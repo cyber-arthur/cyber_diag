@@ -251,6 +251,12 @@ def export_pdf(resultats: dict, siren: str, output_dir: str):
     pdf.section_title("1. Résumé")
     pdf.section_text(f"Domaine       : {ent}")
     pdf.section_text(f"SIREN         : {siren}")
+    directeur = resultats.get("dirigeant", {})
+    nom = directeur.get("nom", "N/A")
+    prenom = directeur.get("prenom", "N/A")
+    qualite = directeur.get("qualite", "N/A")
+    if nom != "N/A" or prenom != "N/A":
+        pdf.section_text(f"Dirigeant     : {prenom} {nom} ({qualite})")
     risk = "Élevé" if mal>0 else "Modéré" if susp>0 else "Faible"
     pdf.section_text(f"Risque global : {risk}")
     pdf.section_text(
@@ -289,14 +295,6 @@ def export_pdf(resultats: dict, siren: str, output_dir: str):
     pdf.section_title("5. Emails détectés")
 
     if emails:
-        pdf.section_text(
-            "Les adresses email suivantes ont été détectées via des sources publiques ou des outils d'OSINT. "
-            "Le pourcentage indiqué représente un indice de confiance basé sur la méthode de détection, "
-            "la fréquence d'apparition sur le web, et la cohérence avec le domaine de l'entreprise.\n"
-            "Un score élevé (≥ 80%) signifie que l'email est très probablement valide et actif."
-        )
-        pdf.add_newline()
-
         for idx, e in enumerate(emails, 1):
             email = e.get("email")
             confidence = e.get("confidence", "N/C")
