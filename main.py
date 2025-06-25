@@ -73,13 +73,16 @@ def cyber_diag(nom_entreprise: str, siren: str, ip_list: list):
     scraping_data = scraper.scrape()
     resultats["resultats"]["scraping"] = scraping_data
 
-    # 4) Scans IP
-    for ip in ip_list:
-        print(f"➡️ Scan IP {ip}…")
-        resultats["resultats"]["ips"][ip] = {
-            "nmap":   nmap_scan(ip),
-            "shodan": shodan_scan(ip, SHODAN_API_KEY)
-        }
+    # 4) Scans IP (si des IP sont spécifiées)
+    if ip_list:
+        for ip in ip_list:
+            print(f"➡️ Scan IP {ip}…")
+            resultats["resultats"]["ips"][ip] = {
+                "nmap":   nmap_scan(ip),
+                "shodan": shodan_scan(ip, SHODAN_API_KEY)
+            }
+    else:
+        print("ℹ️ Aucune IP fournie → aucun scan réseau effectué.")
 
     # 5) Sauvegarde JSON
     json_path = os.path.join(OUTPUT_DIR, f"diag_{siren}.json")
@@ -118,11 +121,10 @@ if __name__ == "__main__":
     else:
         siren = args.siren
 
-    # IP par défaut si non fournie
-    if not args.ips:
-        ip_list = ["8.8.8.8"]
-        print("Aucune IP fournie → scan par défaut sur : 8.8.8.8")
-    else:
-        ip_list = args.ips
+    # Liste d'IP (vide si aucune fournie)
+    ip_list = args.ips or []
+    if not ip_list:
+        print("Aucune IP fournie → le scan réseau sera ignoré.")
+
 
     cyber_diag(domain, siren, ip_list)
