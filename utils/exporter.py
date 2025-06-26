@@ -299,7 +299,10 @@ def export_pdf(resultats: dict, siren: str, output_dir: str):
             email = e.get("email")
             confidence = e.get("confidence", "N/C")
             source = e.get("source", None)
+            spf = e.get("SPF", "SPF non renseigné")
+            dkim = e.get("DKIM", "DKIM non renseigné")
 
+            # Évaluation de la fiabilité
             if isinstance(confidence, (int, float)):
                 if confidence >= 90:
                     trust = "très haute fiabilité"
@@ -314,7 +317,13 @@ def export_pdf(resultats: dict, siren: str, output_dir: str):
                 detail = "niveau de confiance non communiqué"
 
             source_text = f" | Source : {source}" if source else ""
+
+            # Affichage principal
             pdf.section_text(f"{idx}. {email} ({detail}){source_text}")
+
+            # Ajout des détails SPF/DKIM
+            pdf.section_text(f"   ↳ SPF : {spf}")
+            pdf.section_text(f"   ↳ DKIM : {dkim}")
     else:
         pdf.section_text("Aucun email détecté.")
 

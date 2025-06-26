@@ -1,4 +1,28 @@
 import requests
+import dns.resolver
+
+def get_spf(domain):
+    try:
+        answers = dns.resolver.resolve(domain, 'TXT')
+        for rdata in answers:
+            txt = ''.join(rdata.strings).strip('"')
+            if txt.startswith('v=spf1'):
+                return txt
+    except Exception as e:
+        return f"Erreur SPF: {e}"
+    return "SPF non trouvé"
+
+def get_dkim(domain, selector='default'):
+    try:
+        dkim_domain = f"{selector}._domainkey.{domain}"
+        answers = dns.resolver.resolve(dkim_domain, 'TXT')
+        for rdata in answers:
+            txt = ''.join(rdata.strings).strip('"')
+            if txt.startswith('v=DKIM1'):
+                return txt
+    except Exception as e:
+        return f"Erreur DKIM: {e}"
+    return "DKIM non trouvé"
 
 def hunter_search(domain, api_key):
     url = f"https://api.hunter.io/v2/domain-search?domain={domain}&api_key={api_key}"
@@ -6,6 +30,8 @@ def hunter_search(domain, api_key):
     if response.status_code == 200:
         data = response.json()
         emails = []
+        spf = get_spf(domain)
+        dkim = get_dkim(domain)
         for item in data.get("data", {}).get("emails", []):
             emails.append({
                 "email": item.get("value"),
@@ -14,7 +40,9 @@ def hunter_search(domain, api_key):
                 "position": item.get("position"),
                 "phone_number": item.get("phone_number"),
                 "confidence": item.get("confidence"),
-                "sources": item.get("sources")
+                "sources": item.get("sources"),
+                "SPF": spf,
+                "DKIM": dkim
             })
         return emails
     else:
