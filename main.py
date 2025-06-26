@@ -14,7 +14,9 @@ from utils.papper_api import PappersClient
 from utils.scraper import SiteScraper
 from utils.exporter import export_pdf
 
+
 def normalize_domain(domain_input: str) -> str:
+    """Nettoie et extrait le nom de domaine."""
     if "://" not in domain_input:
         domain_input = "https://" + domain_input
     parsed = urlparse(domain_input)
@@ -23,104 +25,106 @@ def normalize_domain(domain_input: str) -> str:
         netloc = netloc[4:]
     return netloc.rstrip("/")
 
-# --- Chargement des clés d'API ---
-load_dotenv()
-SHODAN_API_KEY     = os.getenv("SHODAN_API_KEY")
-HUNTER_API_KEY     = os.getenv("HUNTER_API_KEY")
-VT_API_KEY         = os.getenv("VT_API_KEY")
-PAPPERS_API_KEY    = os.getenv("PAPPERS_API_KEY")
 
-if not VT_API_KEY:
-    raise RuntimeError("Il faut définir VT_API_KEY dans votre .env")
-if not PAPPERS_API_KEY:
-    raise RuntimeError("Il faut définir PAPPERS_API_KEY dans votre .env")
+def load_api_keys() -> dict:
+    """Charge les clés d’API à partir du fichier .env"""
+    load_dotenv()
+    keys = {
+        "SHODAN_API_KEY": os.getenv("SHODAN_API_KEY"),
+        "HUNTER_API_KEY": os.getenv("HUNTER_API_KEY"),
+        "VT_API_KEY": os.getenv("VT_API_KEY"),
+        "PAPPERS_API_KEY": os.getenv("PAPPERS_API_KEY"),
+    }
 
-# Instanciation des clients
-vt_client    = VirusTotalClient(VT_API_KEY)
-osint_client = OSINTClient(vt_client)
+    missing = [k for k, v in keys.items() if not v and "OPTIONAL" not in k]
+    if missing:
+        raise RuntimeError(f"Clés API manquantes : {', '.join(missing)}")
 
-# Répertoire de sortie
-OUTPUT_DIR = "rapports"
-os.makedirs(OUTPUT_DIR, exist_ok=True)
+    return keys
 
-def cyber_diag(nom_entreprise: str, siren: str, ip_list: list):
-    print(f"📡 Diagnostic pour domaine « {nom_entreprise} » …")
 
-    # 1) Collecte initiale
+def cyber_diag(domain: str, siren: str, ip_list: list, api_keys: dict):
+    print(f"📡 Diagnostic pour domaine « {domain} » …")
+
+    vt_client = VirusTotalClient(api_keys["VT_API_KEY"])
+    osint_client = OSINTClient(vt_client)
+
     resultats = {
-        "entreprise": nom_entreprise,
+        "entreprise": domain,
         "siren": siren,
         "resultats": {
             "ips": {},
-            "dns": dns_lookup(nom_entreprise),
-            "osint": osint_harvester(nom_entreprise),
-            "emails": hunter_search(nom_entreprise, HUNTER_API_KEY),
-            "virustotal": osint_client.check_domain(nom_entreprise)
+            "dns": dns_lookup(domain),
+            "osint": osint_harvester(domain),
+            "emails": hunter_search(domain, api_keys["HUNTER_API_KEY"]),
+            "virustotal": osint_client.check_domain(domain)
         }
     }
 
-    # 2) Récupération du dirigeant via l’API Pappers
+    # Récupération du dirigeant
     print("👤 Recherche du dirigeant via Pappers…")
     directeur = get_company_director(siren)
     print("[DEBUG] Dirigeant récupéré :", directeur)
     resultats["dirigeant"] = directeur
 
-    # 3) Enrichissement WHOIS
+    # WHOIS enrichi
     vt_data = resultats["resultats"]["virustotal"]
     resultats["resultats"]["virustotal"]["whois"] = {
         "registrar":       vt_data.get("whois_registrar",      "N/A"),
-        "creation_date":   vt_data.get("whois_creation_date", "N/A"),
+        "creation_date":   vt_data.get("whois_creation_date",  "N/A"),
         "expiration_date": vt_data.get("whois_expiration_date","N/A"),
         "owner":           vt_data.get("whois_registrar",      "N/A"),
-        "name_servers":    vt_data.get("whois_name_servers",  [])
+        "name_servers":    vt_data.get("whois_name_servers",   [])
     }
 
-    # 4) Scraping du site web
+    # Scraping
     print("🌐 Scraping du site web…")
-    scraper = SiteScraper(nom_entreprise, max_pages=20)
-    scraping_data = scraper.scrape()
-    resultats["resultats"]["scraping"] = scraping_data
+    scraper = SiteScraper(domain, max_pages=20)
+    resultats["resultats"]["scraping"] = scraper.scrape()
 
-    # 5) Scans IP (si IP fournies)
+    # Scan IPs
     if ip_list:
         for ip in ip_list:
             print(f"➡️ Scan IP {ip}…")
             resultats["resultats"]["ips"][ip] = {
-                "nmap":   nmap_scan(ip),
-                "shodan": shodan_scan(ip, SHODAN_API_KEY)
+                "nmap": nmap_scan(ip),
+                "shodan": shodan_scan(ip, api_keys["SHODAN_API_KEY"])
             }
     else:
         print("ℹ️ Aucune IP fournie → aucun scan réseau effectué.")
 
-    # 6) Sauvegarde JSON
+    # Sauvegarde
+    OUTPUT_DIR = "rapports"
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+
     json_path = os.path.join(OUTPUT_DIR, f"diag_{siren}.json")
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(resultats, f, indent=2, ensure_ascii=False, default=str)
+
     print(f"✅ Rapport JSON généré : {json_path}")
 
-    # 7) Génération PDF
+    # Export PDF
     export_pdf(resultats, siren, OUTPUT_DIR)
 
-if __name__ == "__main__":
+
+def main():
     parser = argparse.ArgumentParser(description="Outil de diagnostic cybersécurité")
     parser.add_argument("--nom", required=True, help="Nom de domaine de l'entreprise (ex: entreprise.fr)")
     parser.add_argument("--siren", required=False, help="SIREN de l'entreprise (9 chiffres).")
     parser.add_argument("--ips", nargs="+", required=False, help="Liste des IP publiques à analyser.")
     args = parser.parse_args()
 
-    # Normalisation du domaine
     domain = normalize_domain(args.nom)
 
-    # SIREN : auto-généré si non fourni
+    siren = args.siren if args.siren else str(random.randint(10**8, 10**9 - 1))
     if not args.siren:
-        siren = str(random.randint(10**8, 10**9 - 1))
-        print(f"Aucun SIREN fourni → génération d'un SIREN aléatoire : {siren}")
-    else:
-        siren = args.siren
+        print(f"Aucun SIREN fourni → génération aléatoire : {siren}")
 
-    # IPs à scanner
     ip_list = args.ips or []
-    if not ip_list:
-        print("Aucune IP fournie → le scan réseau sera ignoré.")
 
-    cyber_diag(domain, siren, ip_list)
+    api_keys = load_api_keys()
+    cyber_diag(domain, siren, ip_list, api_keys)
+
+
+if __name__ == "__main__":
+    main()
