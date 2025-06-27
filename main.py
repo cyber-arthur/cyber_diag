@@ -6,12 +6,14 @@ from urllib.parse import urlparse
 from dotenv import load_dotenv
 
 from utils.dns_tools import dns_lookup
-from utils.hunter import hunter_search
+from utils.hunter import hunter_search, enrich_emails
 from utils.osint import osint_harvester
 from utils.scanner import nmap_scan, shodan_scan
 from utils.osint_advanced import VirusTotalClient, OSINTClient
 from utils.scraper import SiteScraper
 from utils.exporter import export_pdf
+
+
 
 
 def normalize_domain(domain_input: str) -> str:
@@ -68,7 +70,22 @@ def cyber_diag(domain: str, siren: str, ip_list: list, api_keys: dict):
 
     print("🌐 Scraping du site web…")
     scraper = SiteScraper(domain, max_pages=20)
-    resultats["resultats"]["scraping"] = scraper.scrape()
+    scraping = scraper.scrape()
+    scraped_emails = scraping.get("emails", [])
+    enriched = enrich_emails(scraped_emails)
+
+        # Fusion avec ceux de Hunter, sans doublons
+    hunter_emails = resultats["resultats"]["emails"]
+    hunter_dict = {e["email"]: e for e in hunter_emails}
+    for e in enriched:
+        email = e["email"]
+        if email in hunter_dict:
+            hunter_dict[email]["source"] = list(set(hunter_dict[email].get("source", []) + e.get("source", [])))
+        else:
+            hunter_dict[email] = e
+    resultats["resultats"]["emails"] = list(hunter_dict.values())
+    resultats["resultats"]["scraping"] = scraping
+
 
     if ip_list:
         for ip in ip_list:

@@ -40,7 +40,6 @@ if [ ! -f ".env" ]; then
 SHODAN_API_KEY=your_shodan_api_key
 HUNTER_API_KEY=your_hunter_api_key
 VT_API_KEY=your_virustotal_api_key
-PAPPERS_API_KEY=your_pappers_api_key
 EOF
     echo "⚠️  N'oubliez pas de remplir vos clés dans .env !"
 else

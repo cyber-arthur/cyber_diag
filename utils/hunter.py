@@ -52,3 +52,32 @@ def hunter_search(domain, api_key):
         return emails
     else:
         return {"error": response.text}
+
+def enrich_emails(emails: list[str]) -> list[dict]:
+    import os
+    import requests
+
+    API_KEY = os.getenv("HUNTER_API_KEY")
+    endpoint = "https://api.hunter.io/v2/email-verifier"
+    enriched = []
+
+    for email in emails:
+        try:
+            resp = requests.get(endpoint, params={"email": email, "api_key": API_KEY})
+            data = resp.json().get("data", {})
+            result = {
+                "email": email,
+                "confidence": data.get("score", 0),
+                "source": ["Hunter.io"],
+                "SPF": "Non renseigné",
+                "DKIM": "Non renseigné",
+                "whois": None
+            }
+            enriched.append(result)
+        except Exception:
+            enriched.append({
+                "email": email,
+                "confidence": "N/C",
+                "source": ["Hunter.io"]
+            })
+    return enriched
