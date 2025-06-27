@@ -29,20 +29,29 @@ HEADERS_INTEREST = [
 ]
 
 # === Utilitaires réseau ===
+def parse_cert_part(cert_section):
+    result = {}
+    for rdn in cert_section:
+        for k, v in rdn:
+            result[k] = v
+    return result
+
 def fetch_certificate(domain):
     try:
-        ctx = ssl.create_default_context()
-        with ctx.wrap_socket(socket.socket(), server_hostname=domain) as s:
-            s.settimeout(5)
-            s.connect((domain, 443))
-            cert = s.getpeercert()
-        return {
-            'issuer': next((v for k, v in sum(cert.get('issuer', []), []) if k in ('O', 'organizationName')), 'N/A'),
-            'subject': next((v for k, v in sum(cert.get('subject', []), []) if k in ('CN', 'commonName')), 'N/A'),
-            'not_before': cert.get('notBefore', 'N/A'),
-            'not_after': cert.get('notAfter', 'N/A')
-        }
-    except Exception:
+        context = ssl.create_default_context()
+        with socket.create_connection((domain, 443), timeout=5) as sock:
+            with context.wrap_socket(sock, server_hostname=domain) as ssock:
+                cert = ssock.getpeercert()
+                issuer = parse_cert_part(cert.get('issuer', []))
+                subject = parse_cert_part(cert.get('subject', []))
+                return {
+                    'issuer': issuer.get('O') or issuer.get('organizationName', 'N/A'),
+                    'subject': subject.get('CN') or subject.get('commonName', 'N/A'),
+                    'not_before': cert.get('notBefore', 'N/A'),
+                    'not_after': cert.get('notAfter', 'N/A')
+                }
+    except Exception as e:
+        print(f"[⚠️ SSL] Erreur : {e}")
         return None
 
 def fetch_headers(domain):
@@ -167,12 +176,12 @@ def export_pdf(data, siren, output_dir):
             dkim = e.get("DKIM", "Non renseigné")
             whois = e.get("whois", None)
             pdf.add_text(f"{email} (Confiance : {conf}%) | Source : {source_str}")
-            pdf.add_text(" - SPF  :")
+            pdf.add_text(" → SPF  :")
             pdf.add_text(spf)
-            pdf.add_text(" - DKIM :")
+            pdf.add_text(" → DKIM :")
             pdf.add_text(dkim)
             if whois:
-                pdf.add_text(f" - WHOIS : {whois}")
+                pdf.add_text(f" → WHOIS : {whois}")
     else:
         pdf.add_text("Aucun email détecté.")
 
@@ -201,30 +210,40 @@ def export_pdf(data, siren, output_dir):
 
     pdf.add_section("Analyse VirusTotal")
     vt_stats = vt.get("stats", {})
+    reputation = vt.get("reputation", "N/A")
+    categories = vt.get("categories", {})
+
     if vt_stats:
+        pdf.add_text("Cette section présente le bilan de réputation du domaine selon VirusTotal :")
+        pdf.add_text("- 'malicious' : nombre de moteurs ayant signalé ce domaine comme malveillant")
+        pdf.add_text("- 'suspicious' : potentiellement dangereux, à surveiller")
+        pdf.add_text("- 'harmless' : jugé sain par les moteurs")
+        pdf.add_text("- 'undetected' : pas analysé ou aucun retour des moteurs")
+        pdf.ln(1)
+
         for k, v in vt_stats.items():
-            pdf.add_text(f"{k} : {v}")
+            pdf.add_text(f"{k.capitalize()} : {v}")
+
+        pdf.ln(1)
+        pdf.add_text(f"Réputation générale (score VT) : {reputation}")
+
+        if categories:
+            cats = ', '.join([f"{src}: {cat}" for src, cat in categories.items()])
+            pdf.add_text(f"Catégories associées : {cats}")
+
+        pdf.ln(1)
+        pdf.add_text("🔎 Astuce : un domaine avec un seul moteur 'malicious' n'est pas toujours dangereux, mais plusieurs signaux doivent alerter. Recoupez toujours avec le contexte métier.")
     else:
-        pdf.add_text("Aucune donnée disponible.")
+        pdf.add_text("Aucune donnée disponible depuis VirusTotal.")
 
-    pdf.add_section("Données Web (Scraping)")
+    pdf.add_section("Réseaux sociaux détectés")
     socials = fetch_socials(ent)
-    categories = [
-        ("Emails", scrap.get("emails", [])),
-        ("Téléphones", [p for p in scrap.get("phones", []) if len(re.sub(r"\D", "", p)) >= 8]),
-        ("Adresses", scrap.get("addresses", [])),
-        ("Noms", scrap.get("names", [])),
-        ("Réseaux sociaux", socials)
-    ]
-    for label, items in categories:
-        pdf.add_text(f"{label} :")
-        if items:
-            for item in items:
-                pdf.add_text(f" - {item}")
-        else:
-            pdf.add_text("(Aucune donnée)")
+    if socials:
+        for url in socials:
+            pdf.add_text(f"- {url}")
+    else:
+        pdf.add_text("Aucun lien social détecté sur le site.")
 
-    os.makedirs(output_dir, exist_ok=True)
     out_path = os.path.join(output_dir, f"rapport_{siren}.pdf")
     pdf.output(out_path)
     print(f"✅ Rapport généré : {out_path}")
