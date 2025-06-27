@@ -9,14 +9,12 @@ from utils.dns_tools import dns_lookup
 from utils.hunter import hunter_search
 from utils.osint import osint_harvester
 from utils.scanner import nmap_scan, shodan_scan
-from utils.osint_advanced import VirusTotalClient, OSINTClient, get_company_director
-from utils.papper_api import PappersClient
+from utils.osint_advanced import VirusTotalClient, OSINTClient
 from utils.scraper import SiteScraper
 from utils.exporter import export_pdf
 
 
 def normalize_domain(domain_input: str) -> str:
-    """Nettoie et extrait le nom de domaine."""
     if "://" not in domain_input:
         domain_input = "https://" + domain_input
     parsed = urlparse(domain_input)
@@ -27,19 +25,16 @@ def normalize_domain(domain_input: str) -> str:
 
 
 def load_api_keys() -> dict:
-    """Charge les clés d’API à partir du fichier .env"""
     load_dotenv()
     keys = {
         "SHODAN_API_KEY": os.getenv("SHODAN_API_KEY"),
         "HUNTER_API_KEY": os.getenv("HUNTER_API_KEY"),
         "VT_API_KEY": os.getenv("VT_API_KEY"),
-        "PAPPERS_API_KEY": os.getenv("PAPPERS_API_KEY"),
     }
 
     missing = [k for k, v in keys.items() if not v and "OPTIONAL" not in k]
     if missing:
         raise RuntimeError(f"Clés API manquantes : {', '.join(missing)}")
-
     return keys
 
 
@@ -61,28 +56,20 @@ def cyber_diag(domain: str, siren: str, ip_list: list, api_keys: dict):
         }
     }
 
-    # Récupération du dirigeant
-    print("👤 Recherche du dirigeant via Pappers…")
-    directeur = get_company_director(siren)
-    print("[DEBUG] Dirigeant récupéré :", directeur)
-    resultats["dirigeant"] = directeur
-
     # WHOIS enrichi
     vt_data = resultats["resultats"]["virustotal"]
     resultats["resultats"]["virustotal"]["whois"] = {
-        "registrar":       vt_data.get("whois_registrar",      "N/A"),
-        "creation_date":   vt_data.get("whois_creation_date",  "N/A"),
-        "expiration_date": vt_data.get("whois_expiration_date","N/A"),
-        "owner":           vt_data.get("whois_registrar",      "N/A"),
-        "name_servers":    vt_data.get("whois_name_servers",   [])
+        "registrar":       vt_data.get("whois_registrar", "N/A"),
+        "creation_date":   vt_data.get("whois_creation_date", "N/A"),
+        "expiration_date": vt_data.get("whois_expiration_date", "N/A"),
+        "owner":           vt_data.get("whois_registrar", "N/A"),
+        "name_servers":    vt_data.get("whois_name_servers", [])
     }
 
-    # Scraping
     print("🌐 Scraping du site web…")
     scraper = SiteScraper(domain, max_pages=20)
     resultats["resultats"]["scraping"] = scraper.scrape()
 
-    # Scan IPs
     if ip_list:
         for ip in ip_list:
             print(f"➡️ Scan IP {ip}…")
@@ -93,7 +80,6 @@ def cyber_diag(domain: str, siren: str, ip_list: list, api_keys: dict):
     else:
         print("ℹ️ Aucune IP fournie → aucun scan réseau effectué.")
 
-    # Sauvegarde
     OUTPUT_DIR = "rapports"
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
@@ -103,7 +89,6 @@ def cyber_diag(domain: str, siren: str, ip_list: list, api_keys: dict):
 
     print(f"✅ Rapport JSON généré : {json_path}")
 
-    # Export PDF
     export_pdf(resultats, siren, OUTPUT_DIR)
 
 
@@ -115,11 +100,9 @@ def main():
     args = parser.parse_args()
 
     domain = normalize_domain(args.nom)
-
     siren = args.siren if args.siren else str(random.randint(10**8, 10**9 - 1))
     if not args.siren:
         print(f"Aucun SIREN fourni → génération aléatoire : {siren}")
-
     ip_list = args.ips or []
 
     api_keys = load_api_keys()

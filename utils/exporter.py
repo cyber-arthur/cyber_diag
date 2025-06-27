@@ -17,14 +17,31 @@ CHART_SIZE      = (6, 3)
 DATE_FORMAT     = "%d %B %Y %H:%M %Z"
 TIMEZONE        = "Europe/Paris"
 
+SOCIAL_PATTERNS = {
+    "linkedin": r'https?://(?:www\.)?linkedin\.com/(?:company|in)/[^/?#]+$',
+    "facebook": r'https?://(?:www\.)?facebook\.com/[^/?#]+$',
+    "instagram": r'https?://(?:www\.)?instagram\.com/[^/?#]+$',
+    "twitter": r'https?://(?:www\.)?twitter\.com/[^/?#]+$'
+}
+HEADERS_TO_DISPLAY = [
+    'Server','X-Frame-Options','Strict-Transport-Security','Content-Security-Policy'
+]
+
 # ================== Helpers ==================
 def fetch_certificate_info(domain: str) -> dict:
-    """Récupère et aplatit le certificat TLS du domaine."""
-    ctx = ssl.create_default_context()
-    with ctx.wrap_socket(socket.socket(), server_hostname=domain) as s:
-        s.settimeout(5)
-        s.connect((domain, 443))
-        cert = s.getpeercert()
+    try:
+        ctx = ssl.create_default_context()
+        with ctx.wrap_socket(socket.socket(), server_hostname=domain) as s:
+            s.settimeout(5)
+            s.connect((domain, 443))
+            cert = s.getpeercert()
+    except Exception:
+        return {
+            'issuer': 'N/A',
+            'subject': 'N/A',
+            'not_before': 'N/A',
+            'not_after': 'N/A'
+        }
     issuer, subject = {}, {}
     for rdn in cert.get('issuer', []):
         for k, v in rdn:
@@ -40,7 +57,6 @@ def fetch_certificate_info(domain: str) -> dict:
     }
 
 def fetch_http_headers(domain: str) -> dict:
-    """HEAD request pour récupérer les headers HTTP principaux."""
     try:
         resp = requests.head(f"https://{domain}", timeout=5)
         return dict(resp.headers)
@@ -48,44 +64,46 @@ def fetch_http_headers(domain: str) -> dict:
         return {}
 
 def clean_osint_text(text: str) -> str:
-    skip = ['missing api key','coded by','searching','exception','captcha','error','theharvester']
+    skip = {'missing api key','coded by','searching','exception','captcha','error','theharvester'}
     lines = []
     for line in text.splitlines():
-        l = line.strip()
-        if not l or any(k in l.lower() for k in skip) or re.match(r"\*+", l):
+        stripped = line.strip()
+        if not stripped or any(k in stripped.lower() for k in skip) or re.match(r"\*+", stripped):
             continue
-        lines.append(l)
+        lines.append(stripped)
     return "\n".join(lines)
 
+
+def add_key_value_section(pdf, pairs):
+    for label, value in pairs:
+        pdf.set_font("Helvetica", '', 10)
+        pdf.multi_cell(0, 5, f"{label} : {value}")
+        pdf.ln(1)
+
+
 def fetch_social_links(domain: str) -> list[str]:
-    """Scrape la page d'accueil pour extraire les liens courts de réseaux sociaux."""
     try:
         resp = requests.get(f"https://{domain}", timeout=5)
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, 'html.parser')
-        found = set()
-        for a in soup.find_all('a', href=True):
-            href = a['href'].strip().rstrip('/')
-            if re.match(r'https?://(?:www\.)?linkedin\.com/(?:company|in)/[^/?#]+$', href):
-                found.add(href)
-            elif re.match(r'https?://(?:www\.)?facebook\.com/[^/?#]+$', href) and 'sharer' not in href:
-                found.add(href)
-            elif re.match(r'https?://(?:www\.)?instagram\.com/[^/?#]+$', href):
-                found.add(href)
-            elif re.match(r'https?://(?:www\.)?twitter\.com/[^/?#]+$', href) and 'intent' not in href:
-                found.add(href)
+        found = {
+            href.strip().rstrip('/')
+            for a in soup.find_all('a', href=True)
+            if any(re.match(p, href := a['href'].strip().rstrip('/')) and 'intent' not in href and 'sharer' not in href
+                   for p in SOCIAL_PATTERNS.values())
+        }
         return sorted(found)
     except Exception:
         return []
 
 # ================== Chart Generation ==================
 def generate_ports_chart(ips_data: dict, output_dir: str) -> str | None:
-    counts = Counter()
-    for data in ips_data.values():
-        for line in data.get('nmap','').splitlines():
-            m = re.match(r"(\d+)/tcp", line)
-            if m:
-                counts[int(m.group(1))] += 1
+    counts = Counter(
+        int(m.group(1))
+        for data in ips_data.values()
+        for line in data.get('nmap','').splitlines()
+        if (m := re.match(r"(\d+)/tcp", line))
+    )
     if not counts:
         return None
     ports, occ = zip(*sorted(counts.items()))
@@ -96,16 +114,15 @@ def generate_ports_chart(ips_data: dict, output_dir: str) -> str | None:
     plt.title("Ports détectés (via Nmap)", color='#003366')
     plt.tight_layout()
     for bar in bars:
-        w = bar.get_width()
-        plt.text(w + 0.2, bar.get_y()+bar.get_height()/2, str(int(w)), va='center', fontsize=8)
+        plt.text(bar.get_width() + 0.2, bar.get_y() + bar.get_height() / 2,
+                 str(int(bar.get_width())), va='center', fontsize=8)
     path = os.path.join(output_dir, "nmap_ports.png")
     plt.savefig(path)
     plt.close()
     return path
 
 def generate_vt_pie_chart(stats: dict, output_dir: str) -> str | None:
-    labels = []
-    sizes  = []
+    labels, sizes = [], []
     for k in ('malicious','suspicious','harmless'):
         v = stats.get(k, 0)
         if v > 0:
@@ -122,7 +139,9 @@ def generate_vt_pie_chart(stats: dict, output_dir: str) -> str | None:
     plt.close()
     return path
 
-# ================== PDF Class ==================
+
+# (Suite du fichier précédent)
+
 class PDF(FPDF):
     def __init__(self):
         super().__init__(orientation='P', unit='mm', format='A4')
@@ -205,16 +224,9 @@ class PDF(FPDF):
 # ================== Export PDF ==================
 def export_pdf(resultats: dict, siren: str, output_dir: str):
     sections = [
-        "Résumé",
-        "WHOIS & Domaine",
-        "Certificat SSL/TLS",
-        "Headers HTTP",
-        "Emails détectés",
-        "DNS Records",
-        "Scans IP",
-        "Ports détectés",
-        "Diagramme VirusTotal",
-        "Scraping site web"
+        "Résumé", "WHOIS & Domaine", "Certificat SSL/TLS", "Headers HTTP",
+        "Emails détectés", "DNS Records", "Scans IP", "Ports détectés",
+        "Diagramme VirusTotal", "Scraping site web"
     ]
 
     ent    = resultats.get("entreprise", "N/A")
@@ -222,108 +234,94 @@ def export_pdf(resultats: dict, siren: str, output_dir: str):
     emails = resultats["resultats"].get("emails", [])
     dns    = resultats["resultats"].get("dns", {})
     ips    = resultats["resultats"].get("ips", {})
-    osint  = resultats["resultats"].get("osint", {})
     scrap  = resultats["resultats"].get("scraping", {})
 
-    # Stats VT
     stats      = vt.get("stats", {})
     mal        = stats.get("malicious", 0)
     susp       = stats.get("suspicious", 0)
     harmless   = stats.get("harmless", 0)
     reputation = vt.get("reputation", "N/A")
 
-    # Phones validés
     raw_phones = scrap.get("phones", [])
     phones = [p for p in raw_phones if len(re.sub(r"\D","",p)) >= 8]
-
-    # Socials
     socials = fetch_social_links(ent)
 
     pdf = PDF()
-    pdf.cover_page(
-        "Rapport de Diagnostic Cybersécurité",
-        f"{ent} (SIREN {siren})"
-    )
+    pdf.cover_page("Rapport de Diagnostic Cybersécurité", f"{ent} (SIREN {siren})")
     pdf.toc_page(sections)
     pdf.add_page()
 
     # 1. Résumé
     pdf.section_title("1. Résumé")
-    pdf.section_text(f"Domaine       : {ent}")
-    pdf.section_text(f"SIREN         : {siren}")
-    directeur = resultats.get("dirigeant", {})
-    nom = directeur.get("nom", "N/A")
-    prenom = directeur.get("prenom", "N/A")
-    qualite = directeur.get("qualite", "N/A")
-    if nom != "N/A" or prenom != "N/A":
-        pdf.section_text(f"Dirigeant     : {prenom} {nom} ({qualite})")
+    add_key_value_section(pdf, [
+        ("Domaine", ent),
+        ("SIREN", siren)
+    ])
+
     risk = "Élevé" if mal>0 else "Modéré" if susp>0 else "Faible"
     pdf.section_text(f"Risque global : {risk}")
-    pdf.section_text(
-        f"Détails : {mal} détection(s) malveillante(s), "
-        f"{susp} suspecte(s), {harmless} bénigne(s) ; "
-        f"réputation VT = {reputation}."
-    )
+    pdf.section_text(f"Détails : {mal} malveillant(s), {susp} suspect(s), {harmless} bénin(s) ; réputation VT = {reputation}.")
 
     # 2. WHOIS & Domaine
     pdf.section_title("2. WHOIS & Domaine")
     who = vt.get("whois", {})
-    pdf.section_text(f"Registrar    : {who.get('registrar','N/A')}")
-    pdf.section_text(f"Création     : {who.get('creation_date','N/A')}")
-    pdf.section_text(f"Expiration   : {who.get('expiration_date','N/A')}")
+    add_key_value_section(pdf, [
+        ("Registrar", who.get('registrar','N/A')),
+        ("Création", who.get('creation_date','N/A')),
+        ("Expiration", who.get('expiration_date','N/A'))
+    ])
 
     # 3. Certificat SSL/TLS
     pdf.section_title("3. Certificat SSL/TLS")
     cert = fetch_certificate_info(ent)
-    pdf.section_text(f"Émetteur    : {cert['issuer']}")
-    pdf.section_text(f"Sujet       : {cert['subject']}")
-    pdf.section_text(f"Valide du   : {cert['not_before']}")
-    pdf.section_text(f"au          : {cert['not_after']}")
+    add_key_value_section(pdf, [
+        ("Émetteur", cert['issuer']),
+        ("Sujet", cert['subject']),
+        ("Valide du", cert['not_before']),
+        ("au", cert['not_after'])
+    ])
 
     # 4. Headers HTTP
     pdf.section_title("4. Headers HTTP")
     hdr = fetch_http_headers(ent)
     if hdr:
-        for k in ['Server','X-Frame-Options','Strict-Transport-Security','Content-Security-Policy']:
-            v = hdr.get(k)
-            if v:
+        for k in HEADERS_TO_DISPLAY:
+            if (v := hdr.get(k)):
                 pdf.section_text(f"{k}: {v}")
     else:
         pdf.section_text("Aucun header HTTP récupéré.")
 
     # 5. Emails détectés
     pdf.section_title("5. Emails détectés")
-
     if emails:
         for idx, e in enumerate(emails, 1):
-            email = e.get("email")
+            email = e.get("email", "Adresse inconnue")
             confidence = e.get("confidence", "N/C")
-            source = e.get("source", None)
+            source = e.get("source", "non précisée")
             spf = e.get("SPF", "SPF non renseigné")
             dkim = e.get("DKIM", "DKIM non renseigné")
+            whois_info = e.get("whois", None)
 
-            # Évaluation de la fiabilité
+            # Déterminer le niveau de fiabilité
             if isinstance(confidence, (int, float)):
                 if confidence >= 90:
-                    trust = "très haute fiabilité"
+                    trust = "très haute"
                 elif confidence >= 75:
-                    trust = "bonne fiabilité"
+                    trust = "bonne"
                 elif confidence >= 50:
-                    trust = "fiabilité moyenne"
+                    trust = "moyenne"
                 else:
-                    trust = "faible fiabilité"
-                detail = f"{confidence}% - {trust}"
+                    trust = "faible"
+                detail = f"{confidence}% - {trust} fiabilité"
             else:
-                detail = "niveau de confiance non communiqué"
+                detail = "Niveau de confiance non communiqué"
 
-            source_text = f" | Source : {source}" if source else ""
-
-            # Affichage principal
-            pdf.section_text(f"{idx}. {email} ({detail}){source_text}")
-
-            # Ajout des détails SPF/DKIM
-            pdf.section_text(f"   ↳ SPF : {spf}")
+            pdf.section_text(f"{idx}. {email} ({detail}) | Source : {source}")
+            pdf.section_text(f"   ↳ SPF  : {spf}")
             pdf.section_text(f"   ↳ DKIM : {dkim}")
+
+            if whois_info:
+                pdf.section_text(f"   ↳ WHOIS : {whois_info}")
     else:
         pdf.section_text("Aucun email détecté.")
 
@@ -337,7 +335,7 @@ def export_pdf(resultats: dict, siren: str, output_dir: str):
     pdf.section_title("7. Scans IP")
     for idx, (ip, data) in enumerate(ips.items(), 1):
         pdf.subsection_title(f"{idx}. {ip}")
-        pdf.section_text(data.get("nmap","").strip() or "Pas de résultat Nmap.")
+        pdf.section_text(data.get("nmap",""))
         pdf.section_text("Shodan :")
         for subidx, (kk, vv) in enumerate(data.get("shodan",{}).items(),1):
             pdf.section_text(f"   {subidx}. {kk}: {vv}")
@@ -355,22 +353,18 @@ def export_pdf(resultats: dict, siren: str, output_dir: str):
     pie = generate_vt_pie_chart(stats, output_dir)
     if pie:
         pdf.add_image(pie, w=120)
-        pdf.section_text(
-            "- Malicious : détections confirmées\n"
-            "- Suspicious : analyses à vérifier\n"
-            "- Harmless : résultats bénins"
-        )
+        pdf.section_text("- Malicious : détections confirmées\n- Suspicious : analyses à vérifier\n- Harmless : résultats bénins")
     else:
         pdf.section_text("Pas de données VT à afficher.")
 
     # 10. Scraping site web
     pdf.section_title("10. Scraping site web")
     categories = [
-        ("Emails trouvés",         scrap.get("emails", [])),
-        ("Téléphones trouvés",     phones),
-        ("Adresses postales",      scrap.get("addresses", [])),
+        ("Emails trouvés", scrap.get("emails", [])),
+        ("Téléphones trouvés", phones),
+        ("Adresses postales", scrap.get("addresses", [])),
         ("Noms / Prénoms trouvés", scrap.get("names", [])),
-        ("Réseaux sociaux trouvés", socials),
+        ("Réseaux sociaux trouvés", socials)
     ]
     for num, (label, items) in enumerate(categories, 1):
         pdf.subsection_title(f"{num}. {label}")
@@ -380,7 +374,6 @@ def export_pdf(resultats: dict, siren: str, output_dir: str):
         else:
             pdf.section_text(f"Aucun {label.lower()}.")
 
-    # Enregistrement
     os.makedirs(output_dir, exist_ok=True)
     out = os.path.join(output_dir, f"diag_{siren}.pdf")
     pdf.output(out)

@@ -29,7 +29,6 @@ def get_dkim(domain, selectors=None):
             continue
     return "DKIM non trouvé"
 
-
 def hunter_search(domain, api_key):
     url = f"https://api.hunter.io/v2/domain-search?domain={domain}&api_key={api_key}"
     response = requests.get(url)
