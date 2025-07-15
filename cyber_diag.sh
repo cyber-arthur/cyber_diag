@@ -25,12 +25,8 @@ source $VENV_DIR/bin/activate
 
 # --- Étape 3 : Dépendances Python ---
 echo "⬆️ Installation des dépendances Python..."
-cd $HARVESTER_DIR/
-echo "📚 Installation des dépendances de theHarvester..."
-pip install -r requirements.txt
-cd ..
-pip install --upgrade pip
 pip install -r $REQUIREMENTS
+pip install --upgrade pip
 python -m spacy download fr_core_news_sm
 
 # --- Étape 4 : Créer .env si manquant ---
