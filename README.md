@@ -35,7 +35,6 @@ CyberDiag interroge les bases de données et les serveurs publics pour collecter
 Le script identifie les services visibles sur les IP fournies à l’aide de deux techniques :
 
 * **Nmap** : pour découvrir les ports ouverts et services actifs.
-* **Shodan** : une base de données mondiale d’objets connectés indexant les métadonnées visibles (OS, ports, tags, fournisseurs…).
 
 🔎 *Utilité : repérer des services vulnérables ou exposés inutilement (ex : interface d’administration, base de données, FTP public…).*
 
@@ -78,7 +77,7 @@ CyberDiag extrait des données sensibles laissées involontairement accessibles 
 | **VirusTotal**   | Requête sur la réputation et les statistiques malwares via API officielle          |
 | **SSL/TLS**      | Analyse du certificat via socket & parsing X.509                                   |
 | **HTTP Headers** | Inspection des politiques HTTP de sécurité (CSP, X-Frame-Options, etc.)            |
-| **Scan IP**      | Combinaison de Nmap + Shodan pour une visibilité complète                          |
+| **Scan IP**      | Combinaison de Nmap pour une visibilité complète                          |
 | **Scraper Web**  | Crawl de plusieurs pages internes pour extraire des entités spécifiques            |
 | **Rapports**     | JSON brut pour l’automatisation, PDF visuel pour les réunions ou livrables clients |
 
@@ -110,7 +109,6 @@ Le script `cyber_diag.sh` :
 Créez un fichier `.env` à la racine du dossier :
 
 ```dotenv
-SHODAN_API_KEY=VotreCleShodan
 HUNTER_API_KEY=VotreCleHunter
 VT_API_KEY=VotreCleVirusTotal
 PAPPERS_API_KEY=VotreClePappers
@@ -165,7 +163,7 @@ CYBER_DIAG/
    ├─ hunter.py            # Intégration Hunter.io
    ├─ osint.py             # theHarvester (wrapper)
    ├─ osint_advanced.py    # VirusTotal (API v3)
-   ├─ scanner.py           # Nmap + Shodan
+   ├─ scanner.py           # Nmap
    └─ scraper.py           # Crawling & extraction
 ```
 

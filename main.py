@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from utils.dns_tools import dns_lookup
 from utils.hunter import hunter_search, enrich_emails
 from utils.osint import osint_harvester
-from utils.scanner import nmap_scan, shodan_scan
+from utils.scanner import nmap_scan
 from utils.osint_advanced import VirusTotalClient, OSINTClient
 from utils.scraper import SiteScraper
 from utils.exporter import export_pdf
@@ -28,7 +28,6 @@ def normalize_domain(domain_input: str) -> str:
 def load_api_keys() -> dict:
     load_dotenv()
     keys = {
-        "SHODAN_API_KEY": os.getenv("SHODAN_API_KEY"),
         "HUNTER_API_KEY": os.getenv("HUNTER_API_KEY"),
         "VT_API_KEY": os.getenv("VT_API_KEY"),
         "PAPPERS_API_KEY": os.getenv("PAPPERS_API_KEY")  # ✅ ajout Pappers
@@ -95,8 +94,7 @@ def cyber_diag(domain: str, siren: str, ip_list: list, api_keys: dict):
         for ip in ip_list:
             print(f"➡️ Scan IP {ip}…")
             resultats["resultats"]["ips"][ip] = {
-                "nmap": nmap_scan(ip),
-                "shodan": shodan_scan(ip, api_keys["SHODAN_API_KEY"])
+                "nmap": nmap_scan(ip)
             }
     else:
         print("ℹ️ Aucune IP fournie → aucun scan réseau effectué.")

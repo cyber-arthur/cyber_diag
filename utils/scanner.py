@@ -2,13 +2,7 @@
 
 import re
 from functools import lru_cache
-from shodan import Shodan
 from utils.helpers import run_command
-
-# ================= Shodan client singleton =================
-@lru_cache(maxsize=1)
-def _get_shodan(api_key: str) -> Shodan:
-    return Shodan(api_key)
 
 # ================= Nmap scan optimisé =================
 def nmap_scan(ip: str) -> str:
@@ -49,22 +43,3 @@ def nmap_scan(ip: str) -> str:
         output += "\n\n" + (out_ver or err_ver)
 
     return output
-
-# ================= Shodan scan optimisé =================
-def shodan_scan(ip: str, api_key: str) -> dict:
-    """
-    Interroge Shodan en réutilisant le client mis en cache.
-    """
-    try:
-        api = _get_shodan(api_key)
-        host = api.host(ip)
-        return {
-            "ip":         host.get("ip_str"),
-            "org":        host.get("org"),
-            "os":         host.get("os"),
-            "hostnames":  host.get("hostnames", []),
-            "ports":      host.get("ports", []),
-            "tags":       host.get("tags", []),
-        }
-    except Exception as e:
-        return {"error": str(e)}

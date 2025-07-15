@@ -363,9 +363,6 @@ def export_pdf(resultats: dict, siren: str, output_dir: str):
     for idx, (ip, data) in enumerate(ips.items(), 1):
         pdf.subsection_title(f"{idx}. {ip}")
         pdf.section_text(data.get("nmap","").strip() or "Pas de résultat Nmap.")
-        pdf.section_text("Shodan :")
-        for subidx, (kk, vv) in enumerate(data.get("shodan",{}).items(),1):
-            pdf.section_text(f"   {subidx}. {kk}: {vv}")
 
     # 8. Ports détectés
     pdf.section_title("8. Ports détectés")
