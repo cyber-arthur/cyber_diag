@@ -10,240 +10,346 @@ from fpdf import FPDF
 import matplotlib.pyplot as plt
 from bs4 import BeautifulSoup
 
-# === Configuration générale ===
-FONT = "Helvetica"
+# ================== Configurations ==================
+
+FONT_FAMILY     = "Helvetica"
 CORPORATE_COLOR = (0, 51, 102)
-CHART_SIZE = (6, 3)
-DATE_FORMAT = "%d %B %Y %H:%M %Z"
-TIMEZONE = "Europe/Paris"
+CHART_SIZE      = (6, 3)
+DATE_FORMAT     = "%d %B %Y %H:%M %Z"
+TIMEZONE        = "Europe/Paris"
 
-SOCIAL_PATTERNS = {
-    "linkedin": r'https?://(?:www\.)?linkedin\.com/(?:company|in)/[^/?#]+$',
-    "facebook": r'https?://(?:www\.)?facebook\.com/[^/?#]+$',
-    "instagram": r'https?://(?:www\.)?instagram\.com/[^/?#]+$',
-    "twitter": r'https?://(?:www\.)?twitter\.com/[^/?#]+$'
-}
+# ================== Helpers ==================
 
-HEADERS_INTEREST = [
-    'Server', 'X-Frame-Options', 'Strict-Transport-Security', 'Content-Security-Policy'
-]
-
-# === Utilitaires réseau ===
-def parse_cert_part(cert_section):
-    result = {}
-    for rdn in cert_section:
+def fetch_certificate_info(domain: str) -> dict:
+    """Récupère et aplatit le certificat TLS du domaine."""
+    ctx = ssl.create_default_context()
+    with ctx.wrap_socket(socket.socket(), server_hostname=domain) as s:
+        s.settimeout(5)
+        s.connect((domain, 443))
+        cert = s.getpeercert()
+    issuer, subject = {}, {}
+    for rdn in cert.get('issuer', []):
         for k, v in rdn:
-            result[k] = v
-    return result
+            issuer[k] = v
+    for rdn in cert.get('subject', []):
+        for k, v in rdn:
+            subject[k] = v
+    return {
+        'issuer':     issuer.get('organizationName') or issuer.get('O') or 'N/A',
+        'subject':    subject.get('commonName')      or subject.get('CN') or 'N/A',
+        'not_before': cert.get('notBefore', 'N/A'),
+        'not_after':  cert.get('notAfter',  'N/A')
+    }
 
-def fetch_certificate(domain):
+def fetch_http_headers(domain: str) -> dict:
+    """HEAD request pour récupérer les headers HTTP principaux."""
     try:
-        context = ssl.create_default_context()
-        with socket.create_connection((domain, 443), timeout=5) as sock:
-            with context.wrap_socket(sock, server_hostname=domain) as ssock:
-                cert = ssock.getpeercert()
-                issuer = parse_cert_part(cert.get('issuer', []))
-                subject = parse_cert_part(cert.get('subject', []))
-                return {
-                    'issuer': issuer.get('O') or issuer.get('organizationName', 'N/A'),
-                    'subject': subject.get('CN') or subject.get('commonName', 'N/A'),
-                    'not_before': cert.get('notBefore', 'N/A'),
-                    'not_after': cert.get('notAfter', 'N/A')
-                }
-    except Exception as e:
-        print(f"[⚠️ SSL] Erreur : {e}")
-        return None
-
-def fetch_headers(domain):
-    try:
-        return dict(requests.head(f"https://{domain}", timeout=5).headers)
+        resp = requests.head(f"https://{domain}", timeout=5)
+        return dict(resp.headers)
     except Exception:
         return {}
 
-def fetch_socials(domain):
+def clean_osint_text(text: str) -> str:
+    skip = ['missing api key','coded by','searching','exception','captcha','error','theharvester']
+    lines = []
+    for line in text.splitlines():
+        l = line.strip()
+        if not l or any(k in l.lower() for k in skip) or re.match(r"\*+", l):
+            continue
+        lines.append(l)
+    return "\n".join(lines)
+
+def fetch_social_links(domain: str) -> list[str]:
+    """Scrape la page d'accueil pour extraire les liens courts de réseaux sociaux."""
     try:
         resp = requests.get(f"https://{domain}", timeout=5)
+        resp.raise_for_status()
         soup = BeautifulSoup(resp.text, 'html.parser')
-        return sorted({
-            a['href'].strip().rstrip('/')
-            for a in soup.find_all('a', href=True)
-            if any(re.match(p, a['href']) for p in SOCIAL_PATTERNS.values())
-        })
+        found = set()
+        for a in soup.find_all('a', href=True):
+            href = a['href'].strip().rstrip('/')
+            if re.match(r'https?://(?:www\.)?linkedin\.com/(?:company|in)/[^/?#]+$', href):
+                found.add(href)
+            elif re.match(r'https?://(?:www\.)?facebook\.com/[^/?#]+$', href) and 'sharer' not in href:
+                found.add(href)
+            elif re.match(r'https?://(?:www\.)?instagram\.com/[^/?#]+$', href):
+                found.add(href)
+            elif re.match(r'https?://(?:www\.)?twitter\.com/[^/?#]+$', href) and 'intent' not in href:
+                found.add(href)
+        return sorted(found)
     except Exception:
         return []
 
-# === PDF personnalisé ===
+# ================== Chart Generation ==================
+
+def generate_ports_chart(ips_data: dict, output_dir: str) -> str | None:
+    counts = Counter()
+    for data in ips_data.values():
+        for line in data.get('nmap','').splitlines():
+            m = re.match(r"(\d+)/tcp", line)
+            if m:
+                counts[int(m.group(1))] += 1
+
+    if not counts:
+        return None
+    ports, occ = zip(*sorted(counts.items()))
+    plt.figure(figsize=CHART_SIZE)
+    bars = plt.barh([str(p) for p in ports], occ, color='#003366')
+    plt.xlabel("Occurrences")
+    plt.ylabel("Port TCP")
+    plt.title("Ports détectés (via Nmap)", color='#003366')
+    plt.tight_layout()
+    for bar in bars:
+        w = bar.get_width()
+        plt.text(w + 0.2, bar.get_y()+bar.get_height()/2, str(int(w)), va='center', fontsize=8)
+    path = os.path.join(output_dir, "nmap_ports.png")
+    plt.savefig(path)
+    plt.close()
+    return path
+
+def generate_vt_pie_chart(stats: dict, output_dir: str) -> str | None:
+    labels = []
+    sizes  = []
+    for k in ('malicious','suspicious','harmless'):
+        v = stats.get(k, 0)
+        if v > 0:
+            labels.append(f"{k.capitalize()} ({v})")
+            sizes.append(v)
+    if not sizes:
+        return None
+    plt.figure(figsize=CHART_SIZE)
+    plt.pie(sizes, labels=labels, autopct="%1.1f%%", startangle=140)
+    plt.title("Répartition VT", color='#003366')
+    plt.tight_layout()
+    path = os.path.join(output_dir, "vt_pie.png")
+    plt.savefig(path)
+    plt.close()
+    return path
+
+# ================== PDF Class ==================
+
 class PDF(FPDF):
     def __init__(self):
-        super().__init__()
+        super().__init__(orientation='P', unit='mm', format='A4')
         self.set_auto_page_break(auto=True, margin=15)
-        self.set_title("Rapport CyberDiag")
+        self.set_title("Rapport de Diagnostic Cybersécurité")
         self.set_author("Cyber SES")
 
-    def sanitize(self, t): return t.encode('latin-1', 'replace').decode('latin-1')
+    def sanitize(self, t: str) -> str:
+        return t.encode('latin-1', 'replace').decode('latin-1')
 
     def header(self):
         if self.page_no() > 2:
-            self.set_font(FONT, 'B', 12)
+            self.set_font(FONT_FAMILY, 'B', 12)
             self.set_text_color(*CORPORATE_COLOR)
-            self.cell(0, 6, self.sanitize("CyberDiag - Diagnostic Sécurité"), ln=1, align='R')
+            self.cell(0, 6, self.sanitize("Cyber SES Sécurisation TPE/PME"), ln=1, align='R')
+            y = self.get_y()
             self.set_draw_color(*CORPORATE_COLOR)
-            self.line(10, self.get_y(), self.w - 10, self.get_y())
+            self.line(10, y, self.w-10, y)
             self.ln(2)
 
     def footer(self):
         if self.page_no() > 2:
             self.set_y(-15)
-            self.set_font(FONT, '', 8)
+            self.set_font(FONT_FAMILY, '', 8)
             self.set_text_color(128)
-            self.cell(0, 10, f"Page {self.page_no()}", align='C')
+            self.cell(0, 10, self.sanitize(f"Page {self.page_no()}"), align='C')
 
-    def add_section(self, title):
-        self.ln(5)
-        self.set_font(FONT, 'B', 14)
+    def cover_page(self, title: str, subtitle: str):
+        self.add_page()
+        self.set_fill_color(*CORPORATE_COLOR)
+        self.rect(0,0,self.w,self.h,'F')
+        self.set_text_color(255)
+        self.set_font(FONT_FAMILY, 'B', 32)
+        self.ln(80)
+        self.cell(0, 12, self.sanitize(title), ln=1, align='C')
+        self.set_font(FONT_FAMILY, '', 18)
+        self.cell(0, 10, self.sanitize(subtitle), ln=1, align='C')
+        now = datetime.now(ZoneInfo(TIMEZONE))
+        date = now.strftime(DATE_FORMAT)
+        self.ln(12)
+        self.set_font(FONT_FAMILY, 'I', 12)
+        self.cell(0, 8, self.sanitize(f"Date de génération : {date}"), ln=1, align='C')
+
+    def toc_page(self, sections: list):
+        self.add_page()
+        self.set_font(FONT_FAMILY, 'B', 18)
+        self.set_text_color(*CORPORATE_COLOR)
+        self.cell(0, 10, self.sanitize("Table des matières"), ln=1, align='C')
+        self.ln(4)
+        self.set_font(FONT_FAMILY, '', 12)
+        self.set_text_color(0)
+        for i, sec in enumerate(sections, 1):
+            self.cell(0, 8, self.sanitize(f"{i}. {sec}"), ln=1)
+        self.ln(2)
+
+    def section_title(self, title: str):
+        self.ln(4)
+        self.set_font(FONT_FAMILY, 'B', 14)
         self.set_text_color(*CORPORATE_COLOR)
         self.cell(0, 8, self.sanitize(title), ln=1)
         self.set_text_color(0)
 
-    def add_text(self, text):
-        self.set_font(FONT, '', 10)
+    def subsection_title(self, title: str):
+        self.set_font(FONT_FAMILY, 'B', 12)
+        self.set_text_color(80)
+        self.ln(2)
+        self.cell(0, 6, self.sanitize(title), ln=1)
+        self.set_text_color(0)
+
+    def section_text(self, text: str):
+        self.set_font(FONT_FAMILY, '', 10)
         self.multi_cell(0, 5, self.sanitize(text))
         self.ln(1)
 
-    def add_key_value(self, pairs):
-        for label, value in pairs:
-            self.set_font(FONT, '', 10)
-            self.multi_cell(0, 5, f"{label} : {value}")
-            self.ln(1)
-
-    def add_image(self, path, width=100):
-        if os.path.exists(path):
-            self.image(path, w=width)
+    def add_image(self, img_path: str, w: int=100):
+        if os.path.exists(img_path):
+            self.image(img_path, w=w)
             self.ln(5)
 
-# === Export PDF principal ===
-def export_pdf(data, siren, output_dir):
-    ent = data.get("entreprise", "N/A")
-    results = data.get("resultats", {})
-    vt, emails, dns, ips, scrap = (
-        results.get(k, {}) for k in ("virustotal", "emails", "dns", "ips", "scraping")
+# ================== Export PDF ==================
+
+def export_pdf(resultats: dict, siren: str, output_dir: str):
+    sections = [
+        "Résumé",
+        "WHOIS & Domaine",
+        "Certificat SSL/TLS",
+        "Headers HTTP",
+        "Emails détectés",
+        "DNS Records",
+        "Scans IP",
+        "Ports détectés",
+        "Diagramme VirusTotal",
+        "Scraping site web"
+    ]
+
+    ent    = resultats.get("entreprise", "N/A")
+    vt     = resultats["resultats"].get("virustotal", {})
+    emails = resultats["resultats"].get("emails", [])
+    dns    = resultats["resultats"].get("dns", {})
+    ips    = resultats["resultats"].get("ips", {})
+    osint  = resultats["resultats"].get("osint", {})
+    scrap  = resultats["resultats"].get("scraping", {})
+
+    # Stats VT
+    stats      = vt.get("stats", {})
+    mal        = stats.get("malicious", 0)
+    susp       = stats.get("suspicious", 0)
+    harmless   = stats.get("harmless", 0)
+    reputation = vt.get("reputation", "N/A")
+
+    # Phones validés
+    raw_phones = scrap.get("phones", [])
+    phones = [p for p in raw_phones if len(re.sub(r"\D","",p)) >= 8]
+
+    # Socials
+    socials = fetch_social_links(ent)
+    pdf = PDF()
+    pdf.toc_page(sections)
+    pdf.add_page()
+
+    # 1. Résumé
+    pdf.section_title("1. Résumé")
+    pdf.section_text(f"Domaine       : {ent}")
+    pdf.section_text(f"SIREN         : {siren}")
+    risk = "Élevé" if mal>0 else "Modéré" if susp>0 else "Faible"
+    pdf.section_text(f"Risque global : {risk}")
+    pdf.section_text(
+        f"Détails : {mal} détection(s) malveillante(s), "
+        f"{susp} suspecte(s), {harmless} bénigne(s) ; "
+        f"réputation VT = {reputation}."
     )
 
-    pdf = PDF()
-    pdf.add_page()
-    pdf.set_font(FONT, 'B', 20)
-    pdf.set_text_color(*CORPORATE_COLOR)
-    pdf.cell(0, 15, f"Rapport CyberDiag - {ent}", ln=1, align='C')
-    pdf.set_font(FONT, '', 12)
-    pdf.set_text_color(0)
-    pdf.cell(0, 10, f"SIREN : {siren}", ln=1, align='C')
-    pdf.cell(0, 10, f"Généré le : {datetime.now(ZoneInfo(TIMEZONE)).strftime(DATE_FORMAT)}", ln=1, align='C')
-
-    pdf.add_section("WHOIS & Domaine")
+    # 2. WHOIS & Domaine
+    pdf.section_title("2. WHOIS & Domaine")
     who = vt.get("whois", {})
-    pdf.add_key_value([
-        ("Registrar", who.get('registrar', 'N/A')),
-        ("Création", who.get('creation_date', 'N/A')),
-        ("Expiration", who.get('expiration_date', 'N/A'))
-    ])
+    pdf.section_text(f"Registrar    : {who.get('registrar','N/A')}")
+    pdf.section_text(f"Création     : {who.get('creation_date','N/A')}")
+    pdf.section_text(f"Expiration   : {who.get('expiration_date','N/A')}")
 
-    pdf.add_section("Certificat SSL")
-    cert = fetch_certificate(ent)
-    if cert:
-        pdf.add_key_value([
-            ("Émetteur", cert['issuer']),
-            ("Sujet", cert['subject']),
-            ("Valide du", cert['not_before']),
-            ("au", cert['not_after'])
-        ])
+    # 3. Certificat SSL/TLS
+    pdf.section_title("3. Certificat SSL/TLS")
+    cert = fetch_certificate_info(ent)
+    pdf.section_text(f"Émetteur    : {cert['issuer']}")
+    pdf.section_text(f"Sujet       : {cert['subject']}")
+    pdf.section_text(f"Valide du   : {cert['not_before']}")
+    pdf.section_text(f"au          : {cert['not_after']}")
+
+    # 4. Headers HTTP
+    pdf.section_title("4. Headers HTTP")
+    hdr = fetch_http_headers(ent)
+    if hdr:
+        for k in ['Server','X-Frame-Options','Strict-Transport-Security','Content-Security-Policy']:
+            v = hdr.get(k)
+            if v:
+                pdf.section_text(f"{k}: {v}")
     else:
-        pdf.add_text("❌ Impossible de récupérer les informations du certificat SSL.")
+        pdf.section_text("Aucun header HTTP récupéré.")
 
-    pdf.add_section("Headers HTTP")
-    headers = fetch_headers(ent)
-    for k in HEADERS_INTEREST:
-        if v := headers.get(k):
-            pdf.add_text(f"{k} : {v}")
-
-    pdf.add_section("Emails détectés")
+    # 5. Emails détectés
+    pdf.section_title("5. Emails détectés")
     if emails:
-        for e in emails:
-            email = e.get("email", "Inconnu")
-            conf = e.get("confidence", "N/C")
-            sources = e.get("source", [])
-            source_str = ', '.join(sources) if isinstance(sources, list) else str(sources)
-            spf = e.get("SPF", "Non renseigné")
-            dkim = e.get("DKIM", "Non renseigné")
-            whois = e.get("whois", None)
-            pdf.add_text(f"{email} (Confiance : {conf}%) | Source : {source_str}")
-            pdf.add_text(" - SPF  :")
-            pdf.add_text(spf)
-            pdf.add_text(" - DKIM :")
-            pdf.add_text(dkim)
-            if whois:
-                pdf.add_text(f" - WHOIS : {whois}")
+        for idx, e in enumerate(emails, 1):
+            pdf.section_text(f"{idx}. {e.get('email')} ({e.get('confidence','N/C')}%)")
     else:
-        pdf.add_text("Aucun email détecté.")
+        pdf.section_text("Aucun email détecté.")
 
-    pdf.add_section("DNS Records")
-    for k, v in dns.items():
-        val = ', '.join(v) if isinstance(v, list) else v
-        pdf.add_text(f"{k} : {val}")
+    # 6. DNS Records
+    pdf.section_title("6. DNS Records")
+    for idx, (k, vals) in enumerate(dns.items(), 1):
+        vals_str = ', '.join(vals) if isinstance(vals,(list,tuple)) else vals
+        pdf.section_text(f"{idx}. {k}: {vals_str}")
 
-    pdf.add_section("Analyse des IPs")
-    for ip, data in ips.items():
-        pdf.add_text(f"🔹 {ip}")
-        if data.get("nmap"):
-            pdf.add_text("Résultat Nmap :")
-            pdf.add_text(data["nmap"])
-        if data.get("shodan"):
-            pdf.add_text("Shodan :")
-            for key, val in data["shodan"].items():
-                pdf.add_text(f" - {key}: {val}")
+    # 7. Scans IP
+    pdf.section_title("7. Scans IP")
+    for idx, (ip, data) in enumerate(ips.items(), 1):
+        pdf.subsection_title(f"{idx}. {ip}")
+        pdf.section_text(data.get("nmap","").strip() or "Pas de résultat Nmap.")
+        pdf.section_text("Shodan :")
+        for subidx, (kk, vv) in enumerate(data.get("shodan",{}).items(),1):
+            pdf.section_text(f"   {subidx}. {kk}: {vv}")
 
-    pdf.add_section("Ports détectés")
-    chart_path = os.path.join(output_dir, "nmap_ports.png")
-    if os.path.exists(chart_path):
-        pdf.add_image(chart_path, width=160)
+    # 8. Ports détectés
+    pdf.section_title("8. Ports détectés")
+    chart = generate_ports_chart(ips, output_dir)
+    if chart:
+        pdf.add_image(chart, w=160)
     else:
-        pdf.add_text("Aucun port détecté.")
+        pdf.section_text("Aucun port détecté.")
 
-    pdf.add_section("Analyse VirusTotal")
-    vt_stats = vt.get("stats", {})
-    reputation = vt.get("reputation", "N/A")
-    categories = vt.get("categories", {})
-
-    if vt_stats:
-        pdf.add_text("Cette section présente le bilan de réputation du domaine selon VirusTotal :")
-        pdf.add_text("- 'malicious' : nombre de moteurs ayant signalé ce domaine comme malveillant")
-        pdf.add_text("- 'suspicious' : potentiellement dangereux, à surveiller")
-        pdf.add_text("- 'harmless' : jugé sain par les moteurs")
-        pdf.add_text("- 'undetected' : pas analysé ou aucun retour des moteurs")
-        pdf.ln(1)
-
-        for k, v in vt_stats.items():
-            pdf.add_text(f"{k.capitalize()} : {v}")
-
-        pdf.ln(1)
-        pdf.add_text(f"Réputation générale (score VT) : {reputation}")
-
-        if categories:
-            cats = ', '.join([f"{src}: {cat}" for src, cat in categories.items()])
-            pdf.add_text(f"Catégories associées : {cats}")
-
-        pdf.ln(1)
-        pdf.add_text("🔎 Astuce : un domaine avec un seul moteur 'malicious' n'est pas toujours dangereux, mais plusieurs signaux doivent alerter. Recoupez toujours avec le contexte métier.")
+    # 9. Diagramme VirusTotal
+    pdf.section_title("9. Diagramme VirusTotal")
+    pie = generate_vt_pie_chart(stats, output_dir)
+    if pie:
+        pdf.add_image(pie, w=120)
+        pdf.section_text(
+            "- Malicious : détections confirmées\n"
+            "- Suspicious : analyses à vérifier\n"
+            "- Harmless : résultats bénins"
+        )
     else:
-        pdf.add_text("Aucune donnée disponible depuis VirusTotal.")
+        pdf.section_text("Pas de données VT à afficher.")
 
-    pdf.add_section("Réseaux sociaux détectés")
-    socials = fetch_socials(ent)
-    if socials:
-        for url in socials:
-            pdf.add_text(f"- {url}")
-    else:
-        pdf.add_text("Aucun lien social détecté sur le site.")
+    # 10. Scraping site web
+    pdf.section_title("10. Scraping site web")
+    categories = [
+        ("Emails trouvés",         scrap.get("emails", [])),
+        ("Téléphones trouvés",     phones),
+        ("Adresses postales",      scrap.get("addresses", [])),
+        ("Noms / Prénoms trouvés", scrap.get("names", [])),
+        ("Réseaux sociaux trouvés", socials),
+    ]
 
-    out_path = os.path.join(output_dir, f"rapport_{siren}.pdf")
-    pdf.output(out_path)
-    print(f"✅ Rapport généré : {out_path}")
+    for num, (label, items) in enumerate(categories, 1):
+        pdf.subsection_title(f"{num}. {label}")
+        if items:
+            for j, entry in enumerate(items, 1):
+                pdf.section_text(f"{j}. {entry}")
+        else:
+            pdf.section_text(f"Aucun {label.lower()}.")
+
+    # Enregistrement
+    os.makedirs(output_dir, exist_ok=True)
+    out = os.path.join(output_dir, f"diag_{siren}.pdf")
+    pdf.output(out)
+    print(f"📁 Rapport PDF généré : {out}")

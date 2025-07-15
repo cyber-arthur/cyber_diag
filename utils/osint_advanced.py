@@ -14,8 +14,8 @@ PAPPERS_API_KEY = os.getenv("PAPPERS_API_KEY")
 
 if not VT_API_KEY:
     raise RuntimeError("Il faut définir VT_API_KEY dans votre .env")
-if not PAPPERS_API_KEY:
-    raise RuntimeError("Il faut définir PAPPERS_API_KEY dans votre .env")
+#if not PAPPERS_API_KEY:
+#    raise RuntimeError("Il faut définir PAPPERS_API_KEY dans votre .env")
 
 # =================== Logging ===================
 logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
@@ -121,25 +121,25 @@ class OSINTClient:
 
 
 # =================== Pappers API ===================
-def get_company_director(siren: str) -> dict:
-    """
-    Interroge l’API Pappers pour récupérer les infos du dirigeant principal via le SIREN.
-    """
-    try:
-        url = "https://api.pappers.fr/v2/entreprise"
-        params = {"api_token": PAPPERS_API_KEY, "siren": siren}
-        response = requests.get(url, params=params, timeout=10)
-        response.raise_for_status()
-        data = response.json()
-        dirigeants = data.get("dirigeants", [])
-        if dirigeants:
-            d = dirigeants[0]
-            return {
-                "nom": d.get("nom", "N/A"),
-                "prenom": d.get("prenom", "N/A"),
-                "qualite": d.get("qualite", "N/A")
-            }
-    except Exception as e:
-        logging.error(f"Erreur Pappers pour le SIREN {siren} : {e}")
-
-    return {"nom": "N/A", "prenom": "N/A", "qualite": "N/A"}
+#def get_company_director(siren: str) -> dict:
+#    """
+#    Interroge l’API Pappers pour récupérer les infos du dirigeant principal via le SIREN.
+#    """
+#    try:
+#        url = "https://api.pappers.fr/v2/entreprise"
+#        params = {"api_token": PAPPERS_API_KEY, "siren": siren}
+#        response = requests.get(url, params=params, timeout=10)
+#        response.raise_for_status()
+#        data = response.json()
+#        dirigeants = data.get("dirigeants", [])
+#        if dirigeants:
+#            d = dirigeants[0]
+#            return {
+#                "nom": d.get("nom", "N/A"),
+#                "prenom": d.get("prenom", "N/A"),
+#                "qualite": d.get("qualite", "N/A")
+#            }
+#    except Exception as e:
+#        logging.error(f"Erreur Pappers pour le SIREN {siren} : {e}")
+#
+#    return {"nom": "N/A", "prenom": "N/A", "qualite": "N/A"}
