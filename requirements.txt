@@ -8,3 +8,6 @@ python-whois
 beautifulsoup4
 phonenumbers 
 spacy
+setuptools
+wheel 
+blis --prefer-binary
