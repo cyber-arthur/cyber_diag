@@ -12,8 +12,7 @@ from utils.scanner import nmap_scan, shodan_scan
 from utils.osint_advanced import VirusTotalClient, OSINTClient
 from utils.scraper import SiteScraper
 from utils.exporter import export_pdf
-
-
+from utils.pappers import fetch_pappers_data  # ✅ ajout ici
 
 
 def normalize_domain(domain_input: str) -> str:
@@ -32,6 +31,7 @@ def load_api_keys() -> dict:
         "SHODAN_API_KEY": os.getenv("SHODAN_API_KEY"),
         "HUNTER_API_KEY": os.getenv("HUNTER_API_KEY"),
         "VT_API_KEY": os.getenv("VT_API_KEY"),
+        "PAPPERS_API_KEY": os.getenv("PAPPERS_API_KEY")  # ✅ ajout Pappers
     }
 
     missing = [k for k, v in keys.items() if not v and "OPTIONAL" not in k]
@@ -68,13 +68,18 @@ def cyber_diag(domain: str, siren: str, ip_list: list, api_keys: dict):
         "name_servers":    vt_data.get("whois_name_servers", [])
     }
 
+    # ✅ Appel API Pappers
+    print("🏛️ Récupération des informations légales via Pappers…")
+    pappers_data = fetch_pappers_data(siren)
+    resultats["resultats"]["pappers"] = pappers_data or {}
+
     print("🌐 Scraping du site web…")
     scraper = SiteScraper(domain, max_pages=20)
     scraping = scraper.scrape()
     scraped_emails = scraping.get("emails", [])
     enriched = enrich_emails(scraped_emails)
 
-        # Fusion avec ceux de Hunter, sans doublons
+    # Fusion emails Hunter + Scraper
     hunter_emails = resultats["resultats"]["emails"]
     hunter_dict = {e["email"]: e for e in hunter_emails}
     for e in enriched:
@@ -85,7 +90,6 @@ def cyber_diag(domain: str, siren: str, ip_list: list, api_keys: dict):
             hunter_dict[email] = e
     resultats["resultats"]["emails"] = list(hunter_dict.values())
     resultats["resultats"]["scraping"] = scraping
-
 
     if ip_list:
         for ip in ip_list:
@@ -105,7 +109,6 @@ def cyber_diag(domain: str, siren: str, ip_list: list, api_keys: dict):
         json.dump(resultats, f, indent=2, ensure_ascii=False, default=str)
 
     print(f"✅ Rapport JSON généré : {json_path}")
-
     export_pdf(resultats, siren, OUTPUT_DIR)
 
 

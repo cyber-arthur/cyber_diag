@@ -260,6 +260,64 @@ def export_pdf(resultats: dict, siren: str, output_dir: str):
         f"réputation VT = {reputation}."
     )
 
+    # 1bis. Informations sur l'entreprise
+    pdf.section_title("1bis. Informations sur l'entreprise")
+    pappers = resultats["resultats"].get("pappers", {})
+    siege = pappers.get("siege", {})
+
+    def maybe(txt, val): return f"{txt}{val}" if val else None
+
+    lignes = [
+        maybe("Forme juridique : ", pappers.get("forme_juridique")),
+        maybe("Catégorie entreprise : ", pappers.get("categorie_entreprise")),
+        maybe("Capital social : ", f"{pappers.get('capital')} €" if pappers.get("capital") else None),
+        maybe("Date immatriculation : ", pappers.get("date_creation")),
+        maybe("Activité : ", f"{pappers.get('naf')} — {pappers.get('libelle_naf')}"),
+        maybe("Statut RCS : ", pappers.get("statut_rcs")),
+        maybe("Tranche d'effectif : ", pappers.get("tranche_effectif")),
+        maybe("Site Web : ", pappers.get("site_web")),
+        maybe("Téléphone : ", pappers.get("telephone"))
+    ]
+
+    adresse = " ".join(
+    str(s) for s in filter(None, [
+        siege.get("numero_voie"),
+        siege.get("type_voie"),
+        siege.get("libelle_voie"),
+        siege.get("code_postal"),
+        siege.get("ville")
+    ])
+    )
+    if adresse.strip():
+        lignes.append("Adresse siège : " + adresse)
+
+    if siege.get("latitude") and siege.get("longitude"):
+        lignes.append(f"Coordonnées GPS : {siege['latitude']}, {siege['longitude']}")
+
+    if pappers.get("dernier_traitement"):
+        lignes.append("Dernière mise à jour : " + pappers["dernier_traitement"])
+
+    dirigeants = pappers.get("dirigeants") or pappers.get("representants") or []
+    if dirigeants:
+        lignes.append("Dirigeants :")
+        for d in dirigeants:
+            nom = d.get("nom", "")
+            prenom = d.get("prenom", "")
+            qualite = d.get("qualite") or d.get("fonction") or ""
+            date = d.get("date_debut_mandat")
+            ligne = f"  - {prenom} {nom} ({qualite})"
+            if date:
+                ligne += f" — depuis {date}"
+            lignes.append(ligne)
+
+    if lignes:
+        for l in lignes:
+            if l:
+                pdf.section_text(l)
+    else:
+        pdf.section_text("Aucune information d'entreprise disponible.")
+
+    
     # 2. WHOIS & Domaine
     pdf.section_title("2. WHOIS & Domaine")
     who = vt.get("whois", {})
