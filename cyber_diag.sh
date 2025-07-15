@@ -8,18 +8,14 @@ apt update && apt install -y \
   python3 python3-venv python3-pip python3-full \
   nmap git dnsutils curl build-essential libffi-dev
 
-# === 1. Préparation du projet ===
-echo "📁 Accès au dossier cyber_diag..."
-cd cyber_diag || { echo "❌ Dossier 'cyber_diag' introuvable."; exit 1; }
-
-# === 2. Cloner theHarvester si absent ===
+# === 1. Cloner theHarvester si absent ===
 HARVESTER_DIR="../theHarvester"
 [ -d "$HARVESTER_DIR" ] || {
   echo "⬇️ Clonage de theHarvester..."
   git clone https://github.com/laramies/theHarvester.git "$HARVESTER_DIR"
 }
 
-# === 3. Création / activation de venv ===
+# === 2. Création / activation de venv ===
 VENV_DIR="venv"
 [ -d "$VENV_DIR" ] || {
   echo "🧪 Création de l'environnement virtuel Python..."
@@ -27,12 +23,12 @@ VENV_DIR="venv"
 }
 source "$VENV_DIR/bin/activate"
 
-# === 4. Installation des dépendances Python ===
+# === 3. Installation des dépendances Python ===
 echo "⬆️ Installation des dépendances Python..."
 pip install --upgrade pip > /dev/null
 pip install -r requirements.txt
 
-# === 5. Création du fichier .env si absent ===
+# === 4. Création du fichier .env si absent ===
 [ -f .env ] || {
   echo "📝 Création du fichier .env (exemple)"
   cat <<EOF > .env
@@ -44,7 +40,7 @@ EOF
   echo "⚠️  Complétez vos clés API dans .env avant d'exécuter l'analyse."
 }
 
-# === 6. Terminé ===
+# === 5. Terminé ===
 echo -e "\n✅ Installation complète."
 echo "➡️ Lancez votre diagnostic avec :"
 echo "   source venv/bin/activate"
