@@ -7,7 +7,7 @@ PyYAML
 censys
 aiodns
 aiosqlite
-playright
+playwright
 uvloop
 dnspython
 requests
