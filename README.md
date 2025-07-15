@@ -89,12 +89,8 @@ CyberDiag extrait des données sensibles laissées involontairement accessibles 
 Vous n’avez besoin que d’un terminal Linux (Debian/Ubuntu) et de quelques minutes :
 
 ```bash
- apt update \
-  && apt install -y python3 python3-venv python3-pip python3-full nmap git dnsutils \
-  && git clone https://github.com/cyber-arthur/cyber_diag.git \
-  && cd cyber_diag \
-  && chmod +x cyber_diag.sh \
-  && ./cyber_diag.sh
+  git clone https://github.com/cyber-arthur/cyber_diag.git \
+
 ```
 
 Le script `cyber_diag.sh` :
