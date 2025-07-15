@@ -26,13 +26,7 @@ echo "⬆️ Installation des dépendances..."
 pip install --upgrade pip > /dev/null
 pip install -r "$REQUIREMENTS"
 
-# 4. Télécharger le modèle spaCy français si absent
-python -c "import spacy; spacy.load('fr_core_news_sm')" 2>/dev/null || {
-  echo "📦 Téléchargement modèle spaCy FR..."
-  python -m spacy download fr_core_news_sm
-}
-
-# 5. Créer un .env exemple si manquant
+# 4. Créer un .env exemple si manquant
 [ -f .env ] || {
   echo "📝 Création du fichier .env (exemple)"
   cat <<EOF > .env
