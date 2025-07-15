@@ -113,9 +113,10 @@ Créez un fichier `.env` à la racine du dossier :
 SHODAN_API_KEY=VotreCleShodan
 HUNTER_API_KEY=VotreCleHunter
 VT_API_KEY=VotreCleVirusTotal
+PAPPERS_API_KEY=VotreClePappers
 ```
 
-> ⚠️ L’absence de `VT_API_KEY` empêche le script de s’exécuter.
+> ⚠️ L’absence de `VT_API_KEY` ET `PAPPERS_API_KEY` empêche le script de s’exécuter.
 
 ---
 
