@@ -263,7 +263,7 @@ def export_pdf(resultats: dict, siren: str, output_dir: str):
     )
 
     # 2. Informations sur l'entreprise
-    pdf.section_title("1bis. Informations sur l'entreprise")
+    pdf.section_title("2. Informations sur l'entreprise")
     pappers = resultats["resultats"].get("pappers", {})
     siege = pappers.get("siege", {})
 
@@ -321,14 +321,14 @@ def export_pdf(resultats: dict, siren: str, output_dir: str):
 
     
     # 3. WHOIS & Domaine
-    pdf.section_title("2. WHOIS & Domaine")
+    pdf.section_title("3. WHOIS & Domaine")
     who = vt.get("whois", {})
     pdf.section_text(f"Registrar    : {who.get('registrar','N/A')}")
     pdf.section_text(f"Création     : {who.get('creation_date','N/A')}")
     pdf.section_text(f"Expiration   : {who.get('expiration_date','N/A')}")
 
     # 4. Certificat SSL/TLS
-    pdf.section_title("3. Certificat SSL/TLS")
+    pdf.section_title("4. Certificat SSL/TLS")
     cert = fetch_certificate_info(ent)
     pdf.section_text(f"Émetteur    : {cert['issuer']}")
     pdf.section_text(f"Sujet       : {cert['subject']}")
@@ -336,7 +336,7 @@ def export_pdf(resultats: dict, siren: str, output_dir: str):
     pdf.section_text(f"au          : {cert['not_after']}")
 
     # 5. Headers HTTP
-    pdf.section_title("4. Headers HTTP")
+    pdf.section_title("5. Headers HTTP")
     hdr = fetch_http_headers(ent)
     if hdr:
         for k in ['Server','X-Frame-Options','Strict-Transport-Security','Content-Security-Policy']:
@@ -347,7 +347,7 @@ def export_pdf(resultats: dict, siren: str, output_dir: str):
         pdf.section_text("Aucun header HTTP récupéré.")
 
     # 6. Emails détectés
-    pdf.section_title("5. Emails détectés")
+    pdf.section_title("6. Emails détectés")
     if emails:
         for idx, e in enumerate(emails, 1):
             pdf.section_text(f"{idx}. {e.get('email')} ({e.get('confidence','N/C')}%)")
@@ -355,7 +355,7 @@ def export_pdf(resultats: dict, siren: str, output_dir: str):
         pdf.section_text("Aucun email détecté.")
 
      # 7. Résultat theHarvester
-    pdf.section_title("5bis. Résultat theHarvester")
+    pdf.section_title("7. Résultat theHarvester")
     harvest = resultats["resultats"].get("osint", {})
     texte = harvest.get("texte", "").strip()
     if texte:
@@ -368,19 +368,19 @@ def export_pdf(resultats: dict, siren: str, output_dir: str):
         pdf.section_text("Aucune donnée récupérée depuis theHarvester.")
     
     # 8. DNS Records
-    pdf.section_title("6. DNS Records")
+    pdf.section_title("8. DNS Records")
     for idx, (k, vals) in enumerate(dns.items(), 1):
         vals_str = ', '.join(vals) if isinstance(vals,(list,tuple)) else vals
         pdf.section_text(f"{idx}. {k}: {vals_str}")
 
     # 9. Scans IP
-    pdf.section_title("7. Scans IP")
+    pdf.section_title("9. Scans IP")
     for idx, (ip, data) in enumerate(ips.items(), 1):
         pdf.subsection_title(f"{idx}. {ip}")
         pdf.section_text(data.get("nmap","").strip() or "Pas de résultat Nmap.")
 
     # 10. Ports détectés
-    pdf.section_title("8. Ports détectés")
+    pdf.section_title("10. Ports détectés")
     chart = generate_ports_chart(ips, output_dir)
     if chart:
         pdf.add_image(chart, w=160)
@@ -388,7 +388,7 @@ def export_pdf(resultats: dict, siren: str, output_dir: str):
         pdf.section_text("Aucun port détecté.")
 
     # 11. Diagramme VirusTotal
-    pdf.section_title("9. Diagramme VirusTotal")
+    pdf.section_title("11. Diagramme VirusTotal")
     pie = generate_vt_pie_chart(stats, output_dir)
     if pie:
         pdf.add_image(pie, w=120)
@@ -401,7 +401,7 @@ def export_pdf(resultats: dict, siren: str, output_dir: str):
         pdf.section_text("Pas de données VT à afficher.")
 
     # 12. Scraping site web
-    pdf.section_title("10. Scraping site web")
+    pdf.section_title("12. Scraping site web")
     categories = [
         ("Emails trouvés",         scrap.get("emails", [])),
         ("Téléphones trouvés",     phones),
