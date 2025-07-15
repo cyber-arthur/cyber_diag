@@ -101,7 +101,8 @@ def cyber_diag(domain: str, siren: str, ip_list: list, api_keys: dict):
     else:
         print("ℹ️ Aucune IP fournie → aucun scan réseau effectué.")
 
-    OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "rapports")
+    OUTPUT_DIR = "rapports"
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     json_path = os.path.join(OUTPUT_DIR, f"diag_{siren}.json")
     with open(json_path, "w", encoding="utf-8") as f:
