@@ -1,17 +1,26 @@
-# utils/scanner.py
-
 import re
-from functools import lru_cache
-from utils.helpers import run_command
+import subprocess
 
-# ================= Nmap scan optimisé =================
+def run_command(cmd: str) -> tuple[str, str]:
+    """
+    Exécute une commande shell et retourne (stdout, stderr)
+    """
+    try:
+        result = subprocess.run(
+            cmd, shell=True, capture_output=True, text=True, check=False
+        )
+        return result.stdout.strip(), result.stderr.strip()
+    except Exception as e:
+        return "", str(e)
+
+# ================= Nmap scan =================
 def nmap_scan(ip: str) -> str:
     """
     Scan rapide en deux phases :
     1) top 100 ports (-F) sans résolution DNS (-n), sans ping (-Pn), timing T4
     2) si on trouve des ports ouverts, on relance un scan de version (-sV) sur ces ports
     """
-    # phase 1 : fast scan, sortie grepable
+    # Phase 1 : fast scan en mode grepable
     fast_cmd = (
         f"nmap -T4 -Pn -n -F "
         f"--max-retries 1 --host-timeout 20s "
@@ -20,7 +29,7 @@ def nmap_scan(ip: str) -> str:
     out_fast, err_fast = run_command(fast_cmd)
     output = out_fast or err_fast
 
-    # extraire les ports ouverts
+    # Extraire les ports ouverts
     open_ports = []
     for line in output.splitlines():
         if line.startswith("Host"):
@@ -31,7 +40,8 @@ def nmap_scan(ip: str) -> str:
                     if "/open/" in part:
                         port = part.split("/")[0]
                         open_ports.append(port)
-    # phase 2 : version scan sur les ports ouverts
+
+    # Phase 2 : scan de version sur ports ouverts
     if open_ports:
         ports_str = ",".join(open_ports)
         ver_cmd = (

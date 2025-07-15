@@ -12,9 +12,9 @@ from utils.scanner import nmap_scan
 from utils.osint_advanced import VirusTotalClient, OSINTClient
 from utils.scraper import SiteScraper
 from utils.exporter import export_pdf
-from utils.pappers import fetch_pappers_data  # ✅ ajout ici
+from utils.pappers import fetch_pappers_data  # Appel API Pappers
 
-
+# Nettoie le nom de domaine pour normalisation
 def normalize_domain(domain_input: str) -> str:
     if "://" not in domain_input:
         domain_input = "https://" + domain_input
@@ -24,13 +24,13 @@ def normalize_domain(domain_input: str) -> str:
         netloc = netloc[4:]
     return netloc.rstrip("/")
 
-
+# Charge les clés API depuis le fichier .env
 def load_api_keys() -> dict:
     load_dotenv()
     keys = {
         "HUNTER_API_KEY": os.getenv("HUNTER_API_KEY"),
         "VT_API_KEY": os.getenv("VT_API_KEY"),
-        "PAPPERS_API_KEY": os.getenv("PAPPERS_API_KEY")  # ✅ ajout Pappers
+        "PAPPERS_API_KEY": os.getenv("PAPPERS_API_KEY")
     }
 
     missing = [k for k, v in keys.items() if not v and "OPTIONAL" not in k]
@@ -38,13 +38,14 @@ def load_api_keys() -> dict:
         raise RuntimeError(f"Clés API manquantes : {', '.join(missing)}")
     return keys
 
-
-def cyber_diag(domain: str, siren: str, ip_list: list, api_keys: dict):
+# Fonction principale de diagnostic
+def cyber_diag(domain: str, siren: str, ip_list: list, api_keys: dict, use_pappers: bool):
     print(f"📡 Diagnostic pour domaine « {domain} » …")
 
     vt_client = VirusTotalClient(api_keys["VT_API_KEY"])
     osint_client = OSINTClient(vt_client)
 
+    # Dictionnaire des résultats consolidés
     resultats = {
         "entreprise": domain,
         "siren": siren,
@@ -57,7 +58,7 @@ def cyber_diag(domain: str, siren: str, ip_list: list, api_keys: dict):
         }
     }
 
-    # WHOIS enrichi
+    # WHOIS enrichi depuis VirusTotal
     vt_data = resultats["resultats"]["virustotal"]
     resultats["resultats"]["virustotal"]["whois"] = {
         "registrar":       vt_data.get("whois_registrar", "N/A"),
@@ -67,18 +68,22 @@ def cyber_diag(domain: str, siren: str, ip_list: list, api_keys: dict):
         "name_servers":    vt_data.get("whois_name_servers", [])
     }
 
-    # ✅ Appel API Pappers
-    print("🏛️ Récupération des informations légales via Pappers…")
-    pappers_data = fetch_pappers_data(siren)
-    resultats["resultats"]["pappers"] = pappers_data or {}
+    # Optionnel : appel Pappers si activé
+    if use_pappers:
+        print("🏛️ Récupération des informations légales via Pappers…")
+        pappers_data = fetch_pappers_data(siren)
+        resultats["resultats"]["pappers"] = pappers_data or {}
+    else:
+        print("⏭️ API Pappers désactivée par l'utilisateur.")
 
+    # Scraping de données internes du site web
     print("🌐 Scraping du site web…")
     scraper = SiteScraper(domain, max_pages=20)
     scraping = scraper.scrape()
     scraped_emails = scraping.get("emails", [])
     enriched = enrich_emails(scraped_emails)
 
-    # Fusion emails Hunter + Scraper
+    # Fusion des emails : Hunter + Scraper enrichi
     hunter_emails = resultats["resultats"]["emails"]
     hunter_dict = {e["email"]: e for e in hunter_emails}
     for e in enriched:
@@ -90,6 +95,7 @@ def cyber_diag(domain: str, siren: str, ip_list: list, api_keys: dict):
     resultats["resultats"]["emails"] = list(hunter_dict.values())
     resultats["resultats"]["scraping"] = scraping
 
+    # Scan des IPs fournies
     if ip_list:
         for ip in ip_list:
             print(f"➡️ Scan IP {ip}…")
@@ -99,6 +105,7 @@ def cyber_diag(domain: str, siren: str, ip_list: list, api_keys: dict):
     else:
         print("ℹ️ Aucune IP fournie → aucun scan réseau effectué.")
 
+    # Sauvegarde des résultats JSON et export PDF
     OUTPUT_DIR = "rapports"
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
@@ -109,12 +116,13 @@ def cyber_diag(domain: str, siren: str, ip_list: list, api_keys: dict):
     print(f"✅ Rapport JSON généré : {json_path}")
     export_pdf(resultats, siren, OUTPUT_DIR)
 
-
+# Interface ligne de commande
 def main():
     parser = argparse.ArgumentParser(description="Outil de diagnostic cybersécurité")
     parser.add_argument("--nom", required=True, help="Nom de domaine de l'entreprise (ex: entreprise.fr)")
     parser.add_argument("--siren", required=False, help="SIREN de l'entreprise (9 chiffres).")
     parser.add_argument("--ips", nargs="+", required=False, help="Liste des IP publiques à analyser.")
+    parser.add_argument("--use-pappers", action="store_true", help="Inclure les données légales via l'API Pappers")
     args = parser.parse_args()
 
     domain = normalize_domain(args.nom)
@@ -122,10 +130,11 @@ def main():
     if not args.siren:
         print(f"Aucun SIREN fourni → génération aléatoire : {siren}")
     ip_list = args.ips or []
+    use_pappers = args.use_pappers
 
     api_keys = load_api_keys()
-    cyber_diag(domain, siren, ip_list, api_keys)
+    cyber_diag(domain, siren, ip_list, api_keys, use_pappers)
 
-
+# Lancement
 if __name__ == "__main__":
     main()

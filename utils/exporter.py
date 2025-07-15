@@ -50,7 +50,7 @@ def fetch_http_headers(domain: str) -> dict:
         return {}
 
 def clean_osint_text(text: str) -> str:
-    skip = ['missing api key','coded by','searching','exception','captcha','error','theharvester']
+    skip = ['missing api key','coded by','searching','exception','captcha','error']
     lines = []
     for line in text.splitlines():
         l = line.strip()
@@ -212,6 +212,7 @@ class PDF(FPDF):
 def export_pdf(resultats: dict, siren: str, output_dir: str):
     sections = [
         "Résumé",
+        "Informations sur l'entreprise",
         "WHOIS & Domaine",
         "Certificat SSL/TLS",
         "Headers HTTP",

@@ -1,8 +1,17 @@
-from utils.helpers import run_command
+import subprocess
+import os
 
-def osint_harvester(domain):
-    cmd = f"python3 ~/cyber_diag/theHarvester/theHarvester.py -d {domain} -b all -l 200"
-    out, err = run_command(cmd)
-    if out:
-        return {"texte": out.strip()}
-    return {"error": err.strip()}
+def osint_harvester(domain: str) -> dict:
+    print(f"🔍 Lancement de theHarvester pour {domain}...\n")
+    script_path = os.path.join("theHarvester", "theHarvester.py")
+    cmd = [
+        "python3", script_path,
+        "-d", domain,
+        "-b", "bing",  # Tu peux changer "bing" par "all" ou autre
+        "-l", "50"
+    ]
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        return {"texte": result.stdout.strip()}
+    except subprocess.CalledProcessError as e:
+        return {"error": e.stderr.strip()}
