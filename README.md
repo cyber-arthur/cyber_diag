@@ -90,7 +90,7 @@ Vous n’avez besoin que d’un terminal Linux (Debian/Ubuntu) et de quelques mi
 
 ```bash
   git clone https://github.com/cyber-arthur/cyber_diag.git \
-
+  bash cyber_diag.sh
 ```
 
 Le script `cyber_diag.sh` :
