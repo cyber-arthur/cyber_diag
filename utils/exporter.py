@@ -176,12 +176,12 @@ def export_pdf(data, siren, output_dir):
             dkim = e.get("DKIM", "Non renseigné")
             whois = e.get("whois", None)
             pdf.add_text(f"{email} (Confiance : {conf}%) | Source : {source_str}")
-            pdf.add_text(" → SPF  :")
+            pdf.add_text(" - SPF  :")
             pdf.add_text(spf)
-            pdf.add_text(" → DKIM :")
+            pdf.add_text(" - DKIM :")
             pdf.add_text(dkim)
             if whois:
-                pdf.add_text(f" → WHOIS : {whois}")
+                pdf.add_text(f" - WHOIS : {whois}")
     else:
         pdf.add_text("Aucun email détecté.")
 
