@@ -25,7 +25,7 @@ source $VENV_DIR/bin/activate
 
 # --- Étape 3 : Dépendances Python ---
 echo "⬆️ Installation des dépendances Python..."
-pip install --prefer-binary --dry-run -r requirements.txt
+pip install -r requirements.txt
 pip install --upgrade pip
 python -m spacy download fr_core_news_sm
 
