@@ -89,8 +89,10 @@ CyberDiag extrait des données sensibles laissées involontairement accessibles 
 Vous n’avez besoin que d’un terminal Linux (Debian/Ubuntu) et de quelques minutes :
 
 ```bash
-  git clone https://github.com/cyber-arthur/cyber_diag.git \
-  bash cyber_diag.sh
+  git clone https://github.com/cyber-arthur/cyber_diag.git && \
+ cd cyber_diag && \
+ bash cyber_diag.sh
+
 ```
 
 Le script `cyber_diag.sh` :
