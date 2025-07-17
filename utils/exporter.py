@@ -138,9 +138,9 @@ def generate_vt_pie_chart(stats: dict, output_dir: str, siren: str, domain: str)
 class PDF(FPDF):
     def __init__(self):
         super().__init__(orientation='P', unit='mm', format='A4')
-        self.add_font("DejaVu", "", ".fonts/DejaVuSans.ttf", uni=True)
-        self.add_font("DejaVu", "B", ".fonts/DejaVuSans-Bold.ttf", uni=True)
-        self.add_font("DejaVu", "I", ".fonts/DejaVuSans-Oblique.ttf", uni=True)
+        self.add_font("DejaVu", "", "./fonts/DejaVuSans.ttf", uni=True)
+        self.add_font("DejaVu", "B", "./fonts/DejaVuSans-Bold.ttf", uni=True)
+        self.add_font("DejaVu", "I", "./fonts/DejaVuSans-Oblique.ttf", uni=True)
         self.set_font("DejaVu", "", 10)
         self.set_auto_page_break(auto=True, margin=15)
         self.set_title("Rapport de Diagnostic Cybersécurité")
