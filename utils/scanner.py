@@ -13,23 +13,23 @@ def run_command(cmd: str) -> tuple[str, str]:
     except Exception as e:
         return "", str(e)
 
-# ================= Nmap scan =================
+# ================= Nmap scan sur top 1500 ports =================
 def nmap_scan(ip: str) -> str:
     """
-    Scan rapide en deux phases :
-    1) top 100 ports (-F) sans résolution DNS (-n), sans ping (-Pn), timing T4
-    2) si on trouve des ports ouverts, on relance un scan de version (-sV) sur ces ports
+    Scan Nmap en deux phases :
+    1) top 1500 ports (--top-ports 1500), sans DNS ni ping, format grepable
+    2) scan de version (-sV) uniquement sur les ports ouverts détectés
     """
-    # Phase 1 : fast scan en mode grepable
+    # Phase 1 : détection rapide
     fast_cmd = (
-        f"nmap -T4 -Pn -n -F "
-        f"--max-retries 1 --host-timeout 20s "
+        f"nmap -T4 -Pn -n --top-ports 1500 "
+        f"--max-retries 1 --host-timeout 30s "
         f"{ip} -oG -"
     )
     out_fast, err_fast = run_command(fast_cmd)
     output = out_fast or err_fast
 
-    # Extraire les ports ouverts
+    # Extraction des ports ouverts
     open_ports = []
     for line in output.splitlines():
         if line.startswith("Host"):
@@ -41,12 +41,12 @@ def nmap_scan(ip: str) -> str:
                         port = part.split("/")[0]
                         open_ports.append(port)
 
-    # Phase 2 : scan de version sur ports ouverts
+    # Phase 2 : scan de version
     if open_ports:
         ports_str = ",".join(open_ports)
         ver_cmd = (
             f"nmap -T4 -Pn -n -sV "
-            f"--max-retries 1 --host-timeout 20s "
+            f"--max-retries 1 --host-timeout 60s "
             f"-p {ports_str} {ip}"
         )
         out_ver, err_ver = run_command(ver_cmd)

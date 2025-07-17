@@ -40,7 +40,7 @@ def load_api_keys() -> dict:
 
 # Fonction principale de diagnostic
 def cyber_diag(domain: str, siren: str, ip_list: list, api_keys: dict, use_pappers: bool):
-    print(f"📡 Diagnostic pour domaine « {domain} » …")
+    print(f"Diagnostic pour domaine « {domain} » …")
 
     vt_client = VirusTotalClient(api_keys["VT_API_KEY"])
     osint_client = OSINTClient(vt_client)
@@ -70,14 +70,14 @@ def cyber_diag(domain: str, siren: str, ip_list: list, api_keys: dict, use_pappe
 
     # Optionnel : appel Pappers si activé
     if use_pappers:
-        print("🏛️ Récupération des informations légales via Pappers…")
+        print("Récupération des informations légales via Pappers…")
         pappers_data = fetch_pappers_data(siren)
         resultats["resultats"]["pappers"] = pappers_data or {}
     else:
         print("⏭️ API Pappers désactivée par l'utilisateur.")
 
     # Scraping de données internes du site web
-    print("🌐 Scraping du site web…")
+    print("Scraping du site web…")
     scraper = SiteScraper(domain, max_pages=20)
     scraping = scraper.scrape()
     scraped_emails = scraping.get("emails", [])
@@ -103,7 +103,7 @@ def cyber_diag(domain: str, siren: str, ip_list: list, api_keys: dict, use_pappe
                 "nmap": nmap_scan(ip)
             }
     else:
-        print("ℹ️ Aucune IP fournie → aucun scan réseau effectué.")
+        print("ℹAucune IP fournie → aucun scan réseau effectué.")
 
     # Sauvegarde des résultats JSON et export PDF
     OUTPUT_DIR = "rapports"
@@ -113,7 +113,7 @@ def cyber_diag(domain: str, siren: str, ip_list: list, api_keys: dict, use_pappe
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(resultats, f, indent=2, ensure_ascii=False, default=str)
 
-    print(f"✅ Rapport JSON généré : {json_path}")
+    print(f"Rapport JSON généré : {json_path}")
     export_pdf(resultats, siren, OUTPUT_DIR)
 
 # Interface ligne de commande

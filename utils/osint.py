@@ -2,7 +2,7 @@ import subprocess
 import os
 
 def osint_harvester(domain: str) -> dict:
-    print(f"🔍 Lancement de theHarvester pour {domain}...\n")
+    print(f"Lancement de theHarvester pour {domain}...")
     script_path = os.path.join("theHarvester", "theHarvester.py")
     cmd = [
         "python3", script_path,
