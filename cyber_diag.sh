@@ -7,9 +7,9 @@ echo "📦 Installation des dépendances système..."
 apt update && apt install -y \
   python3 python3-venv python3-pip python3-full \
   nmap git dnsutils curl build-essential libffi-dev
-
+  
 # === 1. Cloner theHarvester si absent ===
-HARVESTER_DIR="../theHarvester"
+HARVESTER_DIR="./theHarvester"
 [ -d "$HARVESTER_DIR" ] || {
   echo "⬇️ Clonage de theHarvester..."
   git clone https://github.com/laramies/theHarvester.git "$HARVESTER_DIR"

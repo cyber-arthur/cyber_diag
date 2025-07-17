@@ -350,7 +350,24 @@ def export_pdf(resultats: dict, siren: str, output_dir: str):
     pdf.section_title("6. Emails détectés")
     if emails:
         for idx, e in enumerate(emails, 1):
-            pdf.section_text(f"{idx}. {e.get('email')} ({e.get('confidence','N/C')}%)")
+            ligne = f"{idx}. {e.get('email')}"
+            conf = e.get("confidence")
+            if conf is not None:
+                ligne += f" ({conf}%)"
+            pdf.section_text(ligne)
+
+            # Source
+            sources = e.get("source") or e.get("sources")
+            if sources:
+                src = ', '.join(sources) if isinstance(sources, list) else str(sources)
+                pdf.section_text(f"    Source       : {src}")
+
+            # SPF / DKIM
+            if e.get("SPF") or e.get("DKIM"):
+                if e.get("SPF"):
+                    pdf.section_text(f"    SPF          : {e['SPF']}")
+                if e.get("DKIM"):
+                    pdf.section_text(f"    DKIM         : {e['DKIM']}")
     else:
         pdf.section_text("Aucun email détecté.")
 
