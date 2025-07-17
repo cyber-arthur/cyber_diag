@@ -48,7 +48,7 @@ def load_api_keys() -> dict:
 
 # Fonction principale de diagnostic
 def cyber_diag(domain: str, siren: str, ip_list: list, api_keys: dict, pappers_data: dict, return_results: bool = False):
-    print(f"Début du diagnostic pour le domaine « {domain} » avec SIREN {siren}…")
+    print(f"Début du diagnostic pour le domaine « {domain} »…")
     vt_client = VirusTotalClient(api_keys["VT_API_KEY"])
     osint_client = OSINTClient(vt_client)
 
