@@ -443,18 +443,49 @@ def export_pdf(resultats: dict, siren: str, output_dir: str):
     else:
         pdf.section_text("Aucun port détecté.")
 
-    # 11. Diagramme VirusTotal
-    pdf.section_title("11. Diagramme VirusTotal")
+    # 11. Analyse de sécurité VirusTotal
+    pdf.section_title("11. Analyse de sécurité VirusTotal")
+
     pie = generate_vt_pie_chart(stats, output_dir)
     if pie:
         pdf.add_image(pie, w=120)
-        pdf.section_text(
-            "- Malicious : détections confirmées\n"
-            "- Suspicious : analyses à vérifier\n"
-            "- Harmless : résultats bénins"
-        )
+
+        results = vt.get("results", {})  # Détails par moteur
+        malicious_engines = [k for k, v in results.items() if v.get("category") == "malicious"]
+        suspicious_engines = [k for k, v in results.items() if v.get("category") == "suspicious"]
+        harmless_engines   = [k for k, v in results.items() if v.get("category") == "harmless"]
+
+        # Analyse texte
+        if malicious_engines:
+            pdf.section_text("Menaces détectées : Certains moteurs ont détecté le domaine comme malveillant.")
+            pdf.section_text(f"  - {len(malicious_engines)} moteur(s) concerné(s) :")
+            for e in malicious_engines:
+                label = results[e].get("result") or "Risque détecté"
+                pdf.section_text(f"     - {e}: {label}")
+
+        if suspicious_engines:
+            pdf.section_text("Comportements suspects : Certains moteurs trouvent ce domaine suspect.")
+            pdf.section_text(f"  - {len(suspicious_engines)} moteur(s) concerné(s) :")
+            for e in suspicious_engines:
+                label = results[e].get("result") or "Comportement suspect"
+                pdf.section_text(f"     - {e}: {label}")
+
+        if harmless_engines and not malicious_engines and not suspicious_engines:
+            pdf.section_text("Aucune menace détectée : Tous les moteurs ont classé ce domaine comme sûr.")
+
+        total = sum(stats.values())
+        pdf.section_text(f"\nNombre total d'antivirus analysés : {total}")
+
+        reputation = vt.get("reputation", 0)
+        if reputation > 0:
+            pdf.section_text(f"Réputation générale : Bonne ({reputation})")
+        elif reputation < 0:
+            pdf.section_text(f"Réputation générale : Mauvaise ({reputation})")
+        else:
+            pdf.section_text(f"Réputation générale : Neutre ({reputation})")
+
     else:
-        pdf.section_text("Pas de données VT à afficher.")
+        pdf.section_text("Aucune donnée VirusTotal disponible pour ce domaine.")
 
     # 12. Scraping site web
     pdf.section_title("12. Scraping site web")
