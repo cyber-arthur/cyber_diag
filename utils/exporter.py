@@ -138,18 +138,20 @@ def generate_vt_pie_chart(stats: dict, output_dir: str, siren: str, domain: str)
 class PDF(FPDF):
     def __init__(self):
         super().__init__(orientation='P', unit='mm', format='A4')
+        self.add_font("DejaVu", "", "fonts/DejaVuSans.ttf", uni=True)
+        self.set_font("DejaVu", "", 10)
         self.set_auto_page_break(auto=True, margin=15)
         self.set_title("Rapport de Diagnostic Cybersécurité")
         self.set_author("Cyber SES")
 
     def sanitize(self, t: str) -> str:
-        return t.encode('latin-1', 'replace').decode('latin-1')
+        return t or ""
 
     def header(self):
         if self.page_no() > 2:
-            self.set_font(FONT_FAMILY, 'B', 12)
+            self.set_font("DejaVu", 'B', 12)
             self.set_text_color(*CORPORATE_COLOR)
-            self.cell(0, 6, self.sanitize("Cyber SES Sécurisation TPE/PME"), ln=1, align='R')
+            self.cell(0, 6, "Cyber SES Sécurisation TPE/PME", ln=1, align='R')
             y = self.get_y()
             self.set_draw_color(*CORPORATE_COLOR)
             self.line(10, y, self.w-10, y)
@@ -158,45 +160,46 @@ class PDF(FPDF):
     def footer(self):
         if self.page_no() > 2:
             self.set_y(-15)
-            self.set_font(FONT_FAMILY, '', 8)
+            self.set_font("DejaVu", '', 8)
             self.set_text_color(128)
-            self.cell(0, 10, self.sanitize(f"Page {self.page_no()}"), align='C')
+            self.cell(0, 10, f"Page {self.page_no()}", align='C')
 
     def toc_page(self, sections: list):
         self.add_page()
-        self.set_font(FONT_FAMILY, 'B', 18)
+        self.set_font("DejaVu", 'B', 18)
         self.set_text_color(*CORPORATE_COLOR)
-        self.cell(0, 10, self.sanitize("Table des matières"), ln=1, align='C')
+        self.cell(0, 10, "Table des matières", ln=1, align='C')
         self.ln(4)
-        self.set_font(FONT_FAMILY, '', 12)
+        self.set_font("DejaVu", '', 12)
         self.set_text_color(0)
         for i, sec in enumerate(sections, 1):
-            self.cell(0, 8, self.sanitize(f"{i}. {sec}"), ln=1)
+            self.cell(0, 8, f"{i}. {sec}", ln=1)
         self.ln(2)
 
     def section_title(self, title: str):
         self.ln(4)
-        self.set_font(FONT_FAMILY, 'B', 14)
+        self.set_font("DejaVu", 'B', 14)
         self.set_text_color(*CORPORATE_COLOR)
-        self.cell(0, 8, self.sanitize(title), ln=1)
+        self.cell(0, 8, title, ln=1)
         self.set_text_color(0)
 
     def subsection_title(self, title: str):
-        self.set_font(FONT_FAMILY, 'B', 12)
+        self.set_font("DejaVu", 'B', 12)
         self.set_text_color(80)
         self.ln(2)
-        self.cell(0, 6, self.sanitize(title), ln=1)
+        self.cell(0, 6, title, ln=1)
         self.set_text_color(0)
 
     def section_text(self, text: str):
-        self.set_font(FONT_FAMILY, '', 10)
-        self.multi_cell(0, 5, self.sanitize(text))
+        self.set_font("DejaVu", '', 10)
+        self.multi_cell(0, 5, text)
         self.ln(1)
 
-    def add_image(self, img_path: str, w: int=100):
+    def add_image(self, img_path: str, w: int = 100):
         if os.path.exists(img_path):
             self.image(img_path, w=w)
             self.ln(5)
+
 
 # ================== Export PDF ==================
 
@@ -399,6 +402,14 @@ def export_pdf(grouped_results: list[tuple[str, dict]], siren: str, output_dir: 
                     pdf.section_text("DKIM :\n" + "\n".join(dkim_lines))
                 elif isinstance(dkim, str):
                     pdf.section_text(f"DKIM : {dkim}")
+
+                # Vérification technique (Hunter Verifier API)
+                verif = e.get("verification_details", {})
+                if verif:
+                    pdf.section_text("Vérification technique :")
+                    for k, v in verif.items():
+                        etat = "Oui" if v is True else "Non" if v is False else str(v)
+                        pdf.section_text(f"  - {k.replace('_', ' ').capitalize()} : {etat}")
 
                 pdf.ln(1)  # espace entre les emails
         else:
