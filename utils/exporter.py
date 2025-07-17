@@ -272,26 +272,38 @@ def export_pdf(resultats: dict, siren: str, output_dir: str):
     lignes = [
         maybe("Forme juridique : ", pappers.get("forme_juridique")),
         maybe("Catégorie entreprise : ", pappers.get("categorie_entreprise")),
+        maybe("Exercice : ", pappers.get("forme_exercice")),
         maybe("Capital social : ", f"{pappers.get('capital')} €" if pappers.get("capital") else None),
-        maybe("Date immatriculation : ", pappers.get("date_creation")),
+        maybe("Date immatriculation : ", pappers.get("date_creation_formate")),
         maybe("Activité : ", f"{pappers.get('naf')} — {pappers.get('libelle_naf')}"),
+        maybe("Objet social : ", pappers.get("objet_social")),
         maybe("Statut RCS : ", pappers.get("statut_rcs")),
+        maybe("Greffe : ", pappers.get("greffe")),
+        maybe("N° RCS : ", pappers.get("numero_rcs")),
+        maybe("Date immatriculation RCS : ", pappers.get("date_immatriculation_rcs")),
+        maybe("TVA intracommunautaire : ", pappers.get("numero_tva_intracommunautaire")),
         maybe("Tranche d'effectif : ", pappers.get("tranche_effectif")),
+        maybe("Effectif (estimé) : ", pappers.get("effectif")),
+        maybe("Date clôture exercice : ", pappers.get("date_cloture_exercice")),
+        maybe("Prochaine clôture prévue : ", pappers.get("prochaine_date_cloture_exercice_formate")),
         maybe("Site Web : ", pappers.get("site_web")),
         maybe("Téléphone : ", pappers.get("telephone"))
     ]
 
     adresse = " ".join(
-    str(s) for s in filter(None, [
-        siege.get("numero_voie"),
-        siege.get("type_voie"),
-        siege.get("libelle_voie"),
-        siege.get("code_postal"),
-        siege.get("ville")
-    ])
+        str(s) for s in filter(None, [
+            siege.get("numero_voie"),
+            siege.get("type_voie"),
+            siege.get("libelle_voie"),
+            siege.get("code_postal"),
+            siege.get("ville")
+        ])
     )
     if adresse.strip():
         lignes.append("Adresse siège : " + adresse)
+
+    if siege.get("complement_adresse"):
+        lignes.append(f"Complément d’adresse : {siege['complement_adresse']}")
 
     if siege.get("latitude") and siege.get("longitude"):
         lignes.append(f"Coordonnées GPS : {siege['latitude']}, {siege['longitude']}")
@@ -299,6 +311,14 @@ def export_pdf(resultats: dict, siren: str, output_dir: str):
     if pappers.get("dernier_traitement"):
         lignes.append("Dernière mise à jour : " + pappers["dernier_traitement"])
 
+    # Convention collective
+    conventions = pappers.get("conventions_collectives", [])
+    for conv in conventions:
+        nom = conv.get("nom")
+        if nom:
+            lignes.append("Convention collective : " + nom)
+
+    # Dirigeants
     dirigeants = pappers.get("dirigeants") or pappers.get("representants") or []
     if dirigeants:
         lignes.append("Dirigeants :")
@@ -312,12 +332,19 @@ def export_pdf(resultats: dict, siren: str, output_dir: str):
                 ligne += f" — depuis {date}"
             lignes.append(ligne)
 
+    # Statuts déposés
+    statuts = pappers.get("derniers_statuts")
+    if statuts and statuts.get("date_depot_formate"):
+        lignes.append("Derniers statuts déposés : " + statuts["date_depot_formate"])
+
+    # Affichage
     if lignes:
         for l in lignes:
             if l:
                 pdf.section_text(l)
     else:
         pdf.section_text("Aucune information d'entreprise disponible.")
+
 
     
     # 3. WHOIS & Domaine
@@ -360,14 +387,14 @@ def export_pdf(resultats: dict, siren: str, output_dir: str):
             sources = e.get("source") or e.get("sources")
             if sources:
                 src = ', '.join(sources) if isinstance(sources, list) else str(sources)
-                pdf.section_text(f"    Source       : {src}")
+                pdf.section_text(f"    Source : {src}")
 
             # SPF / DKIM
             if e.get("SPF") or e.get("DKIM"):
                 if e.get("SPF"):
-                    pdf.section_text(f"    SPF          : {e['SPF']}")
+                    pdf.section_text(f"    SPF : {e['SPF']}")
                 if e.get("DKIM"):
-                    pdf.section_text(f"    DKIM         : {e['DKIM']}")
+                    pdf.section_text(f"    DKIM : {e['DKIM']}")
     else:
         pdf.section_text("Aucun email détecté.")
 
