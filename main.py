@@ -141,7 +141,7 @@ def main():
     # 3. Scan IPs une fois
     ips_scan = {}
     for ip in ip_list:
-        print(f"Scan IP {ip}…")
+        print(f"\n Scan IP {ip}…")
         ips_scan[ip] = {"nmap": nmap_scan(ip)}
 
     # 4. Sauvegarde après toutes les analyses
@@ -151,7 +151,7 @@ def main():
     json_path = os.path.join(OUTPUT_DIR, f"diag_{siren}.json")
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump({d: r for d, r in grouped_results}, f, indent=2, ensure_ascii=False, default=str)
-    print(f"\n Rapport JSON généré : {json_path}")
+    print(f"Rapport JSON généré : {json_path}")
     export_pdf(grouped_results, siren, OUTPUT_DIR, ips_scan)
 
 # Lancement

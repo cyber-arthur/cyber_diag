@@ -82,32 +82,38 @@ def fetch_social_links(domain: str) -> list[str]:
 
 # ================== Chart Generation ==================
 
-def generate_ports_chart(ips_data: dict, output_dir: str, siren:str) -> str | None:
-    counts = Counter()
-    for data in ips_data.values():
-        for line in data.get('nmap','').splitlines():
+def generate_ports_chart(ips_data: dict, output_dir: str, siren:str) -> list[str]:
+    charts = []
+    for ip, data in ips_data.items():
+        counts = Counter()
+        for line in data.get('nmap', '').splitlines():
             m = re.match(r"(\d+)/tcp", line)
             if m:
                 counts[int(m.group(1))] += 1
 
-    if not counts:
-        return None
-    ports, occ = zip(*sorted(counts.items()))
-    plt.figure(figsize=CHART_SIZE)
-    bars = plt.barh([str(p) for p in ports], occ, color='#003366')
-    plt.xlabel("Occurrences")
-    plt.ylabel("Port TCP")
-    plt.title("Ports détectés (via Nmap)", color="#476788")
-    plt.tight_layout()
-    for bar in bars:
-        w = bar.get_width()
-        plt.text(w + 0.2, bar.get_y()+bar.get_height()/2, str(int(w)), va='center', fontsize=8)
-    path = os.path.join(output_dir, f"nmap_ports{siren}.png")
-    plt.savefig(path)
-    plt.close()
-    return path
+        if not counts:
+            continue
 
-def generate_vt_pie_chart(stats: dict, output_dir: str, siren:str) -> str | None:
+        ports, occ = zip(*sorted(counts.items()))
+        plt.figure(figsize=CHART_SIZE)
+        bars = plt.barh([str(p) for p in ports], occ, color='#003366')
+        plt.xlabel("Occurrences")
+        plt.ylabel("Port TCP")
+        plt.title(f"Ports pour {ip}", color="#476788")
+        plt.tight_layout()
+        for bar in bars:
+            w = bar.get_width()
+            plt.text(w + 0.2, bar.get_y() + bar.get_height()/2, str(int(w)), va='center', fontsize=8)
+
+        safe_ip = ip.replace('.', '_')
+        path = os.path.join(output_dir, f"nmap_ports_{siren}_{safe_ip}.png")
+        plt.savefig(path)
+        plt.close()
+        charts.append(path)
+    return charts
+
+
+def generate_vt_pie_chart(stats: dict, output_dir: str, siren: str, domain: str) -> str | None:
     labels = []
     sizes  = []
     for k in ('malicious','suspicious','harmless'):
@@ -121,7 +127,8 @@ def generate_vt_pie_chart(stats: dict, output_dir: str, siren:str) -> str | None
     plt.pie(sizes, labels=labels, autopct="%1.1f%%", startangle=140)
     plt.title("Répartition VT", color='#003366')
     plt.tight_layout()
-    path = os.path.join(output_dir, f"vt_pie_{siren}.png") 
+    safe_domain = re.sub(r'\W+', '_', domain)  # pour éviter caractères problématiques
+    path = os.path.join(output_dir, f"vt_pie_{siren}_{safe_domain}.png")
     plt.savefig(path)
     plt.close()
     return path
@@ -419,7 +426,7 @@ def export_pdf(grouped_results: list[tuple[str, dict]], siren: str, output_dir: 
         # 9. Analyse de sécurité VirusTotal
         pdf.section_title("9. Analyse de sécurité VirusTotal")
     
-        pie = generate_vt_pie_chart(stats, output_dir, siren)
+        pie = generate_vt_pie_chart(stats, output_dir, siren, ent)
         if pie:
             pdf.add_image(pie, w=120)
     
@@ -488,15 +495,15 @@ def export_pdf(grouped_results: list[tuple[str, dict]], siren: str, output_dir: 
 
     # 12. Ports détectés
     pdf.section_title("12. Ports détectés")
-    chart = generate_ports_chart(ips_scan, output_dir, siren)
-    if chart:
-        pdf.add_image(chart, w=160)
+    charts = generate_ports_chart(ips_scan, output_dir, siren)
+    if charts:
+        for c in charts:
+            pdf.add_image(c, w=160)
     else:
         pdf.section_text("Aucun port détecté.")
-
 
 # Enregistrement
     os.makedirs(output_dir, exist_ok=True)
     out = os.path.join(output_dir, f"diag_{siren}.pdf")
     pdf.output(out)
-    print(f" Rapport PDF généré : {out}")
+    print(f"Rapport PDF généré : {out}")
