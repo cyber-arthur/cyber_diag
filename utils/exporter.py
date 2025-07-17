@@ -193,7 +193,7 @@ class PDF(FPDF):
 
 # ================== Export PDF ==================
 
-def export_pdf(grouped_results: list[tuple[str, dict]], siren: str, output_dir: str):
+def export_pdf(grouped_results: list[tuple[str, dict]], siren: str, output_dir: str, ips_scan: dict):
     pdf = PDF()
     sections = [
         "Résumé",
@@ -217,7 +217,6 @@ def export_pdf(grouped_results: list[tuple[str, dict]], siren: str, output_dir: 
         vt     = resultats.get("virustotal", {})
         emails = resultats.get("emails", [])
         dns    = resultats.get("dns", {})
-        ips    = resultats.get("ips", {})
         osint  = resultats.get("osint", {})
         scrap  = resultats.get("scraping", {})
 
@@ -334,8 +333,6 @@ def export_pdf(grouped_results: list[tuple[str, dict]], siren: str, output_dir: 
                     pdf.section_text(l)
         else:
             pdf.section_text("Aucune information d'entreprise disponible.")
-
-
 
         # 3. WHOIS & Domaine
         pdf.section_title("3. WHOIS & Domaine")
@@ -485,13 +482,13 @@ def export_pdf(grouped_results: list[tuple[str, dict]], siren: str, output_dir: 
 
     # 11. Scans IP
     pdf.section_title("11. Scans IP")
-    for idx, (ip, data) in enumerate(ips.items(), 1):
+    for idx, (ip, data) in enumerate(ips_scan.items(), 1):
         pdf.subsection_title(f"{idx}. {ip}")
         pdf.section_text(data.get("nmap","").strip() or "Pas de résultat Nmap.")
 
     # 12. Ports détectés
     pdf.section_title("12. Ports détectés")
-    chart = generate_ports_chart(ips, output_dir, siren)
+    chart = generate_ports_chart(ips_scan, output_dir, siren)
     if chart:
         pdf.add_image(chart, w=160)
     else:

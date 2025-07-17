@@ -47,7 +47,7 @@ def load_api_keys() -> dict:
     return keys
 
 # Fonction principale de diagnostic
-def cyber_diag(domain: str, siren: str, ip_list: list, api_keys: dict, use_pappers: bool, return_results: bool = False):
+def cyber_diag(domain: str, siren: str, ip_list: list, api_keys: dict, pappers_data: dict, return_results: bool = False):
     print(f"Début du diagnostic pour le domaine « {domain} » avec SIREN {siren}…")
     vt_client = VirusTotalClient(api_keys["VT_API_KEY"])
     osint_client = OSINTClient(vt_client)
@@ -57,13 +57,8 @@ def cyber_diag(domain: str, siren: str, ip_list: list, api_keys: dict, use_pappe
         "resultats": {}
     }
 
-    if use_pappers:
-        print("Récupération des informations légales via Pappers…")
-        pappers_data = fetch_pappers_data(siren)
-        resultats["pappers"] = pappers_data or {}
-    else:
-        print("API Pappers désactivée par l'utilisateur.")
-
+    resultats["pappers"] = pappers_data or {}
+    
     # Analyse du domaine
     domaine_result = {
         "ips": {},
@@ -102,14 +97,7 @@ def cyber_diag(domain: str, siren: str, ip_list: list, api_keys: dict, use_pappe
     domaine_result["scraping"] = scraping
 
     # IP scanning
-    if ip_list:
-        for ip in ip_list:
-            print(f"Scan IP {ip}…")
-            domaine_result["ips"][ip] = {
-                "nmap": nmap_scan(ip)
-            }
-    else:
-        print("ℹ Aucune IP fournie → aucun scan réseau effectué.")
+    domaine_result["ips"] = {}
     
         # Retourne le résultat pour ce domaine
     return {
@@ -140,13 +128,23 @@ def main():
 
     api_keys = load_api_keys()
     
+    # 1. Chargement API Pappers une fois
+    pappers_data = fetch_pappers_data(siren) if use_pappers else {}
+
+    # 2. Analyse des domaines
     grouped_results = []
     for domain in domains:
         print(f"\n Lancement analyse de {domain}")
-        result = cyber_diag(domain, siren, ip_list, api_keys, use_pappers, return_results=True)
+        result = cyber_diag(domain, siren, ip_list, api_keys, pappers_data)
         grouped_results.append((domain, result))
 
-    # Sauvegarde après toutes les analyses
+    # 3. Scan IPs une fois
+    ips_scan = {}
+    for ip in ip_list:
+        print(f"Scan IP {ip}…")
+        ips_scan[ip] = {"nmap": nmap_scan(ip)}
+
+    # 4. Sauvegarde après toutes les analyses
     OUTPUT_DIR = "rapports"
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
@@ -154,7 +152,7 @@ def main():
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump({d: r for d, r in grouped_results}, f, indent=2, ensure_ascii=False, default=str)
     print(f"\n Rapport JSON généré : {json_path}")
-    export_pdf(grouped_results, siren, OUTPUT_DIR)
+    export_pdf(grouped_results, siren, OUTPUT_DIR, ips_scan)
 
 # Lancement
 if __name__ == "__main__":
