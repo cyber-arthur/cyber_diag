@@ -138,9 +138,6 @@ def generate_vt_pie_chart(stats: dict, output_dir: str, siren: str, domain: str)
 class PDF(FPDF):
     def __init__(self):
         super().__init__(orientation='P', unit='mm', format='A4')
-        self.add_font("DejaVu", "", "./fonts/DejaVuSans.ttf", uni=True)
-        self.add_font("DejaVu", "B", "./fonts/DejaVuSans-Bold.ttf", uni=True)
-        self.add_font("DejaVu", "I", "./fonts/DejaVuSans-Oblique.ttf", uni=True)
         self.add_font("DejaVu", "", "../fonts/DejaVuSans.ttf", uni=True)
         self.add_font("DejaVu", "B", "../fonts/DejaVuSans-Bold.ttf", uni=True)
         self.add_font("DejaVu", "I", "../fonts/DejaVuSans-Oblique.ttf", uni=True)
@@ -154,7 +151,7 @@ class PDF(FPDF):
 
     def header(self):
         if self.page_no() > 2:
-            self.set_font("DejaVu", 'B', 12)
+            self.set_font("DejaVu", "B", 12)
             self.set_text_color(*CORPORATE_COLOR)
             self.cell(0, 6, "Cyber SES Sécurisation TPE/PME", ln=1, align='R')
             y = self.get_y()
@@ -165,17 +162,17 @@ class PDF(FPDF):
     def footer(self):
         if self.page_no() > 2:
             self.set_y(-15)
-            self.set_font("DejaVu", '', 8)
+            self.set_font("DejaVu", "", 8)
             self.set_text_color(128)
             self.cell(0, 10, f"Page {self.page_no()}", align='C')
 
     def toc_page(self, sections: list):
         self.add_page()
-        self.set_font("DejaVu", 'B', 18)
+        self.set_font("DejaVu", "B", 18)
         self.set_text_color(*CORPORATE_COLOR)
         self.cell(0, 10, "Table des matières", ln=1, align='C')
         self.ln(4)
-        self.set_font("DejaVu", '', 12)
+        self.set_font("DejaVu", "", 12)
         self.set_text_color(0)
         for i, sec in enumerate(sections, 1):
             self.cell(0, 8, f"{i}. {sec}", ln=1)
@@ -183,20 +180,20 @@ class PDF(FPDF):
 
     def section_title(self, title: str):
         self.ln(4)
-        self.set_font("DejaVu", 'B', 14)
+        self.set_font("DejaVu", "B", 14)
         self.set_text_color(*CORPORATE_COLOR)
         self.cell(0, 8, title, ln=1)
         self.set_text_color(0)
 
     def subsection_title(self, title: str):
-        self.set_font("DejaVu", 'B', 12)
+        self.set_font("DejaVu", "B", 12)
         self.set_text_color(80)
         self.ln(2)
         self.cell(0, 6, title, ln=1)
         self.set_text_color(0)
 
     def section_text(self, text: str):
-        self.set_font("DejaVu", '', 10)
+        self.set_font("DejaVu", "", 10)
         self.multi_cell(0, 5, text)
         self.ln(1)
 
