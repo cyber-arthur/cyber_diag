@@ -373,28 +373,40 @@ def export_pdf(resultats: dict, siren: str, output_dir: str):
     else:
         pdf.section_text("Aucun header HTTP récupéré.")
 
-    # 6. Emails détectés
+   # 6. Emails détectés
     pdf.section_title("6. Emails détectés")
+
     if emails:
         for idx, e in enumerate(emails, 1):
-            ligne = f"{idx}. {e.get('email')}"
-            conf = e.get("confidence")
-            if conf is not None:
-                ligne += f" ({conf}%)"
-            pdf.section_text(ligne)
+            pdf.subsection_title(f"{idx}. {e.get('email', 'Inconnu')} ({e.get('confidence', 'N/C')}%)")
 
-            # Source
-            sources = e.get("source") or e.get("sources")
-            if sources:
-                src = ', '.join(sources) if isinstance(sources, list) else str(sources)
-                pdf.section_text(f"    Source : {src}")
+            # Source(s) et domaines
+            sources = e.get("sources") or e.get("source") or []
+            if isinstance(sources, list):
+                domaines = [s.get("domain") for s in sources if isinstance(s, dict) and s.get("domain")]
+                urls = [s.get("uri") for s in sources if isinstance(s, dict) and s.get("uri")]
+                full_sources = [f"- {d} ({u})" for d, u in zip(domaines, urls)]
+                if full_sources:
+                    pdf.section_text("Sources :\n" + "\n".join(full_sources))
+                else:
+                    pdf.section_text("Sources : Hunter.io")
+            elif isinstance(sources, str):
+                pdf.section_text(f"Source : {sources}")
 
-            # SPF / DKIM
-            if e.get("SPF") or e.get("DKIM"):
-                if e.get("SPF"):
-                    pdf.section_text(f"    SPF : {e['SPF']}")
-                if e.get("DKIM"):
-                    pdf.section_text(f"    DKIM : {e['DKIM']}")
+            # SPF
+            spf = e.get("SPF")
+            if spf:
+                pdf.section_text(f"SPF : {spf}")
+
+            # DKIM
+            dkim = e.get("DKIM")
+            if isinstance(dkim, dict):
+                dkim_lines = [f"{k}: {v}" for k, v in dkim.items()]
+                pdf.section_text("DKIM :\n" + "\n".join(dkim_lines))
+            elif isinstance(dkim, str):
+                pdf.section_text(f"DKIM : {dkim}")
+
+            pdf.ln(1)  # espace entre les emails
     else:
         pdf.section_text("Aucun email détecté.")
 
