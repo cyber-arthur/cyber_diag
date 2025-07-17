@@ -1,8 +1,6 @@
 import requests
 import dns.resolver
 
-import dns.resolver
-
 def get_spf(domain):
     try:
         answers = dns.resolver.resolve(domain, 'TXT')

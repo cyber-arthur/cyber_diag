@@ -155,22 +155,6 @@ class PDF(FPDF):
             self.set_text_color(128)
             self.cell(0, 10, self.sanitize(f"Page {self.page_no()}"), align='C')
 
-    def cover_page(self, title: str, subtitle: str):
-        self.add_page()
-        self.set_fill_color(*CORPORATE_COLOR)
-        self.rect(0,0,self.w,self.h,'F')
-        self.set_text_color(255)
-        self.set_font(FONT_FAMILY, 'B', 32)
-        self.ln(80)
-        self.cell(0, 12, self.sanitize(title), ln=1, align='C')
-        self.set_font(FONT_FAMILY, '', 18)
-        self.cell(0, 10, self.sanitize(subtitle), ln=1, align='C')
-        now = datetime.now(ZoneInfo(TIMEZONE))
-        date = now.strftime(DATE_FORMAT)
-        self.ln(12)
-        self.set_font(FONT_FAMILY, 'I', 12)
-        self.cell(0, 8, self.sanitize(f"Date de génération : {date}"), ln=1, align='C')
-
     def toc_page(self, sections: list):
         self.add_page()
         self.set_font(FONT_FAMILY, 'B', 18)
@@ -209,7 +193,8 @@ class PDF(FPDF):
 
 # ================== Export PDF ==================
 
-def export_pdf(resultats: dict, siren: str, output_dir: str):
+def export_pdf(grouped_results: list[tuple[str, dict]], siren: str, output_dir: str):
+    pdf = PDF()
     sections = [
         "Résumé",
         "Informations sur l'entreprise",
@@ -219,294 +204,302 @@ def export_pdf(resultats: dict, siren: str, output_dir: str):
         "Emails détectés",
         "Résultat theHarvester",
         "DNS Records",
-        "Scans IP",
-        "Ports détectés",
         "Diagramme VirusTotal",
-        "Scraping site web"
+        "Scraping site web",
+        "Scans IP",
+        "Ports détectés"
     ]
-
-    ent    = resultats.get("entreprise", "N/A")
-    vt     = resultats["resultats"].get("virustotal", {})
-    emails = resultats["resultats"].get("emails", [])
-    dns    = resultats["resultats"].get("dns", {})
-    ips    = resultats["resultats"].get("ips", {})
-    osint  = resultats["resultats"].get("osint", {})
-    scrap  = resultats["resultats"].get("scraping", {})
-
-    # Stats VT
-    stats      = vt.get("stats", {})
-    mal        = stats.get("malicious", 0)
-    susp       = stats.get("suspicious", 0)
-    harmless   = stats.get("harmless", 0)
-    reputation = vt.get("reputation", "N/A")
-
-    # Phones validés
-    raw_phones = scrap.get("phones", [])
-    phones = [p for p in raw_phones if len(re.sub(r"\D","",p)) >= 8]
-
-    # Socials
-    socials = fetch_social_links(ent)
-    pdf = PDF()
+    
     pdf.toc_page(sections)
+
+    for domain, resultats in grouped_results:
+        ent    = domain
+        vt     = resultats.get("virustotal", {})
+        emails = resultats.get("emails", [])
+        dns    = resultats.get("dns", {})
+        ips    = resultats.get("ips", {})
+        osint  = resultats.get("osint", {})
+        scrap  = resultats.get("scraping", {})
+
+        pdf.add_page()
+        pdf.section_title(f"Analyse pour {domain}")
+
+        # Stats VT
+        stats      = vt.get("stats", {})
+        mal        = stats.get("malicious", 0)
+        susp       = stats.get("suspicious", 0)
+        harmless   = stats.get("harmless", 0)
+        reputation = vt.get("reputation", "N/A")
+
+        # Phones validés
+        raw_phones = scrap.get("phones", [])
+        phones = [p for p in raw_phones if len(re.sub(r"\D","",p)) >= 8]
+
+        # Socials
+        socials = fetch_social_links(ent)
+
+        # 1. Résumé
+        pdf.section_title("1. Résumé")
+        pdf.section_text(f"Domaine       : {ent}")
+        pdf.section_text(f"SIREN         : {siren}")
+        risk = "Élevé" if mal>0 else "Modéré" if susp>0 else "Faible"
+        pdf.section_text(f"Risque global : {risk}")
+        pdf.section_text(
+            f"Détails : {mal} détection(s) malveillante(s), "
+            f"{susp} suspecte(s), {harmless} bénigne(s) ; "
+            f"réputation VT = {reputation}."
+        )
+
+
+        # 2. Informations sur l'entreprise
+        pdf.section_title("2. Informations sur l'entreprise")
+        pappers = resultats.get("pappers", {})
+        siege = pappers.get("siege", {})
+
+
+        def maybe(txt, val): return f"{txt}{val}" if val else None
+
+        lignes = [
+            maybe("Forme juridique : ", pappers.get("forme_juridique")),
+            maybe("Catégorie entreprise : ", pappers.get("categorie_entreprise")),
+            maybe("Exercice : ", pappers.get("forme_exercice")),
+            maybe("Capital social : ", f"{pappers.get('capital')} €" if pappers.get("capital") else None),
+            maybe("Date immatriculation : ", pappers.get("date_creation_formate")),
+            maybe("Activité : ", f"{pappers.get('naf')} — {pappers.get('libelle_naf')}"),
+            maybe("Objet social : ", pappers.get("objet_social")),
+            maybe("Statut RCS : ", pappers.get("statut_rcs")),
+            maybe("Greffe : ", pappers.get("greffe")),
+            maybe("N° RCS : ", pappers.get("numero_rcs")),
+            maybe("Date immatriculation RCS : ", pappers.get("date_immatriculation_rcs")),
+            maybe("TVA intracommunautaire : ", pappers.get("numero_tva_intracommunautaire")),
+            maybe("Tranche d'effectif : ", pappers.get("tranche_effectif")),
+            maybe("Effectif (estimé) : ", pappers.get("effectif")),
+            maybe("Date clôture exercice : ", pappers.get("date_cloture_exercice")),
+            maybe("Prochaine clôture prévue : ", pappers.get("prochaine_date_cloture_exercice_formate")),
+            maybe("Site Web : ", pappers.get("site_web")),
+            maybe("Téléphone : ", pappers.get("telephone"))
+        ]
+
+        adresse = " ".join(
+            str(s) for s in filter(None, [
+                siege.get("numero_voie"),
+                siege.get("type_voie"),
+                siege.get("libelle_voie"),
+                siege.get("code_postal"),
+                siege.get("ville")
+            ])
+        )
+        if adresse.strip():
+            lignes.append("Adresse siège : " + adresse)
+
+        if siege.get("complement_adresse"):
+            lignes.append(f"Complément d’adresse : {siege['complement_adresse']}")
+
+        if siege.get("latitude") and siege.get("longitude"):
+            lignes.append(f"Coordonnées GPS : {siege['latitude']}, {siege['longitude']}")
+
+        if pappers.get("dernier_traitement"):
+            lignes.append("Dernière mise à jour : " + pappers["dernier_traitement"])
+
+        # Convention collective
+        conventions = pappers.get("conventions_collectives", [])
+        for conv in conventions:
+            nom = conv.get("nom")
+            if nom:
+                lignes.append("Convention collective : " + nom)
+
+        # Dirigeants
+        dirigeants = pappers.get("dirigeants") or pappers.get("representants") or []
+        if dirigeants:
+            lignes.append("Dirigeants :")
+            for d in dirigeants:
+                nom = d.get("nom", "")
+                prenom = d.get("prenom", "")
+                qualite = d.get("qualite") or d.get("fonction") or ""
+                date = d.get("date_debut_mandat")
+                ligne = f"  - {prenom} {nom} ({qualite})"
+                if date:
+                    ligne += f" — depuis {date}"
+                lignes.append(ligne)
+
+        # Statuts déposés
+        statuts = pappers.get("derniers_statuts")
+        if statuts and statuts.get("date_depot_formate"):
+            lignes.append("Derniers statuts déposés : " + statuts["date_depot_formate"])
+
+        # Affichage
+        if lignes:
+            for l in lignes:
+                if l:
+                    pdf.section_text(l)
+        else:
+            pdf.section_text("Aucune information d'entreprise disponible.")
+
+
+
+        # 3. WHOIS & Domaine
+        pdf.section_title("3. WHOIS & Domaine")
+        who = vt.get("whois", {})
+        pdf.section_text(f"Registrar    : {who.get('registrar','N/A')}")
+        pdf.section_text(f"Création     : {who.get('creation_date','N/A')}")
+        pdf.section_text(f"Expiration   : {who.get('expiration_date','N/A')}")
+
+        # 4. Certificat SSL/TLS
+        pdf.section_title("4. Certificat SSL/TLS")
+        cert = fetch_certificate_info(ent)
+        pdf.section_text(f"Émetteur    : {cert['issuer']}")
+        pdf.section_text(f"Sujet       : {cert['subject']}")
+        pdf.section_text(f"Valide du   : {cert['not_before']}")
+        pdf.section_text(f"au          : {cert['not_after']}")
+
+        # 5. Headers HTTP
+        pdf.section_title("5. Headers HTTP")
+        hdr = fetch_http_headers(ent)
+        if hdr:
+            for k in ['Server','X-Frame-Options','Strict-Transport-Security','Content-Security-Policy']:
+                v = hdr.get(k)
+                if v:
+                    pdf.section_text(f"{k}: {v}")
+        else:
+            pdf.section_text("Aucun header HTTP récupéré.")
+
+        # 6. Emails détectés
+        pdf.section_title("6. Emails détectés")
+
+        if emails:
+            for idx, e in enumerate(emails, 1):
+                pdf.subsection_title(f"{idx}. {e.get('email', 'Inconnu')} ({e.get('confidence', 'N/C')}%)")
+
+                # Source(s) et domaines
+                sources = e.get("sources") or e.get("source") or []
+                if isinstance(sources, list):
+                    domaines = [s.get("domain") for s in sources if isinstance(s, dict) and s.get("domain")]
+                    urls = [s.get("uri") for s in sources if isinstance(s, dict) and s.get("uri")]
+                    full_sources = [f"- {d} ({u})" for d, u in zip(domaines, urls)]
+                    if full_sources:
+                        pdf.section_text("Sources :\n" + "\n".join(full_sources))
+                    else:
+                        pdf.section_text("Sources : Hunter.io")
+                elif isinstance(sources, str):
+                    pdf.section_text(f"Source : {sources}")
+
+                # SPF
+                spf = e.get("SPF")
+                if spf:
+                    pdf.section_text(f"SPF : {spf}")
+
+                # DKIM
+                dkim = e.get("DKIM")
+                if isinstance(dkim, dict):
+                    dkim_lines = [f"{k}: {v}" for k, v in dkim.items()]
+                    pdf.section_text("DKIM :\n" + "\n".join(dkim_lines))
+                elif isinstance(dkim, str):
+                    pdf.section_text(f"DKIM : {dkim}")
+
+                pdf.ln(1)  # espace entre les emails
+        else:
+            pdf.section_text("Aucun email détecté.")
+
+        # 7. Résultat theHarvester
+        pdf.section_title("7. Résultat theHarvester")
+        harvest = resultats.get("osint", {})
+        texte = harvest.get("texte", "").strip()
+        if texte:
+            contenu = clean_osint_text(texte)
+            if contenu:
+                pdf.section_text(contenu)
+            else:
+                pdf.section_text("Aucun champ intéressant extrait.")
+        else:
+            pdf.section_text("Aucune donnée récupérée depuis theHarvester.")
+
+        # 8. DNS Records
+        pdf.section_title("8. DNS Records")
+        for idx, (k, vals) in enumerate(dns.items(), 1):
+            vals_str = ', '.join(vals) if isinstance(vals,(list,tuple)) else vals
+            pdf.section_text(f"{idx}. {k}: {vals_str}")
+            
+        # 9. Analyse de sécurité VirusTotal
+        pdf.section_title("9. Analyse de sécurité VirusTotal")
+    
+        pie = generate_vt_pie_chart(stats, output_dir, siren)
+        if pie:
+            pdf.add_image(pie, w=120)
+    
+            results = vt.get("results", {})  # Détails par moteur
+            malicious_engines = [k for k, v in results.items() if v.get("category") == "malicious"]
+            suspicious_engines = [k for k, v in results.items() if v.get("category") == "suspicious"]
+            harmless_engines   = [k for k, v in results.items() if v.get("category") == "harmless"]
+    
+            # Analyse texte
+            if malicious_engines:
+                pdf.section_text("Menaces détectées : Certains moteurs ont détecté le domaine comme malveillant.")
+                pdf.section_text(f"  - {len(malicious_engines)} moteur(s) concerné(s) :")
+                for e in malicious_engines:
+                    label = results[e].get("result") or "Risque détecté"
+                    pdf.section_text(f"     - {e}: {label}")
+    
+            if suspicious_engines:
+                pdf.section_text("Comportements suspects : Certains moteurs trouvent ce domaine suspect.")
+                pdf.section_text(f"  - {len(suspicious_engines)} moteur(s) concerné(s) :")
+                for e in suspicious_engines:
+                    label = results[e].get("result") or "Comportement suspect"
+                    pdf.section_text(f"     - {e}: {label}")
+    
+            if harmless_engines and not malicious_engines and not suspicious_engines:
+                pdf.section_text("Aucune menace détectée : Tous les moteurs ont classé ce domaine comme sûr.")
+    
+            total = sum(stats.values())
+            pdf.section_text(f"\nNombre total d'antivirus analysés : {total}")
+    
+            reputation = vt.get("reputation", 0)
+            if reputation > 0:
+                pdf.section_text(f"Réputation générale : Bonne ({reputation})")
+            elif reputation < 0:
+                pdf.section_text(f"Réputation générale : Mauvaise ({reputation})")
+            else:
+                pdf.section_text(f"Réputation générale : Neutre ({reputation})")
+    
+        else:
+            pdf.section_text("Aucune donnée VirusTotal disponible pour ce domaine.")
+
+        # 10. Scraping site web
+        pdf.section_title("10. Scraping site web")
+        categories = [
+            ("Emails trouvés",         scrap.get("emails", [])),
+            ("Téléphones trouvés",     phones),
+            ("Adresses postales",      scrap.get("addresses", [])),
+            ("Noms / Prénoms trouvés", scrap.get("names", [])),
+            ("Réseaux sociaux trouvés", socials),
+        ]
+
+        for num, (label, items) in enumerate(categories, 1):
+            pdf.subsection_title(f"{num}. {label}")
+            if items:
+                for j, entry in enumerate(items, 1):
+                    pdf.section_text(f"{j}. {entry}")
+            else:
+                pdf.section_text(f"Aucun {label.lower()}.")
+                
     pdf.add_page()
 
-    # 1. Résumé
-    pdf.section_title("1. Résumé")
-    pdf.section_text(f"Domaine       : {ent}")
-    pdf.section_text(f"SIREN         : {siren}")
-    risk = "Élevé" if mal>0 else "Modéré" if susp>0 else "Faible"
-    pdf.section_text(f"Risque global : {risk}")
-    pdf.section_text(
-        f"Détails : {mal} détection(s) malveillante(s), "
-        f"{susp} suspecte(s), {harmless} bénigne(s) ; "
-        f"réputation VT = {reputation}."
-    )
-
-    # 2. Informations sur l'entreprise
-    pdf.section_title("2. Informations sur l'entreprise")
-    pappers = resultats["resultats"].get("pappers", {})
-    siege = pappers.get("siege", {})
-
-    def maybe(txt, val): return f"{txt}{val}" if val else None
-
-    lignes = [
-        maybe("Forme juridique : ", pappers.get("forme_juridique")),
-        maybe("Catégorie entreprise : ", pappers.get("categorie_entreprise")),
-        maybe("Exercice : ", pappers.get("forme_exercice")),
-        maybe("Capital social : ", f"{pappers.get('capital')} €" if pappers.get("capital") else None),
-        maybe("Date immatriculation : ", pappers.get("date_creation_formate")),
-        maybe("Activité : ", f"{pappers.get('naf')} — {pappers.get('libelle_naf')}"),
-        maybe("Objet social : ", pappers.get("objet_social")),
-        maybe("Statut RCS : ", pappers.get("statut_rcs")),
-        maybe("Greffe : ", pappers.get("greffe")),
-        maybe("N° RCS : ", pappers.get("numero_rcs")),
-        maybe("Date immatriculation RCS : ", pappers.get("date_immatriculation_rcs")),
-        maybe("TVA intracommunautaire : ", pappers.get("numero_tva_intracommunautaire")),
-        maybe("Tranche d'effectif : ", pappers.get("tranche_effectif")),
-        maybe("Effectif (estimé) : ", pappers.get("effectif")),
-        maybe("Date clôture exercice : ", pappers.get("date_cloture_exercice")),
-        maybe("Prochaine clôture prévue : ", pappers.get("prochaine_date_cloture_exercice_formate")),
-        maybe("Site Web : ", pappers.get("site_web")),
-        maybe("Téléphone : ", pappers.get("telephone"))
-    ]
-
-    adresse = " ".join(
-        str(s) for s in filter(None, [
-            siege.get("numero_voie"),
-            siege.get("type_voie"),
-            siege.get("libelle_voie"),
-            siege.get("code_postal"),
-            siege.get("ville")
-        ])
-    )
-    if adresse.strip():
-        lignes.append("Adresse siège : " + adresse)
-
-    if siege.get("complement_adresse"):
-        lignes.append(f"Complément d’adresse : {siege['complement_adresse']}")
-
-    if siege.get("latitude") and siege.get("longitude"):
-        lignes.append(f"Coordonnées GPS : {siege['latitude']}, {siege['longitude']}")
-
-    if pappers.get("dernier_traitement"):
-        lignes.append("Dernière mise à jour : " + pappers["dernier_traitement"])
-
-    # Convention collective
-    conventions = pappers.get("conventions_collectives", [])
-    for conv in conventions:
-        nom = conv.get("nom")
-        if nom:
-            lignes.append("Convention collective : " + nom)
-
-    # Dirigeants
-    dirigeants = pappers.get("dirigeants") or pappers.get("representants") or []
-    if dirigeants:
-        lignes.append("Dirigeants :")
-        for d in dirigeants:
-            nom = d.get("nom", "")
-            prenom = d.get("prenom", "")
-            qualite = d.get("qualite") or d.get("fonction") or ""
-            date = d.get("date_debut_mandat")
-            ligne = f"  - {prenom} {nom} ({qualite})"
-            if date:
-                ligne += f" — depuis {date}"
-            lignes.append(ligne)
-
-    # Statuts déposés
-    statuts = pappers.get("derniers_statuts")
-    if statuts and statuts.get("date_depot_formate"):
-        lignes.append("Derniers statuts déposés : " + statuts["date_depot_formate"])
-
-    # Affichage
-    if lignes:
-        for l in lignes:
-            if l:
-                pdf.section_text(l)
-    else:
-        pdf.section_text("Aucune information d'entreprise disponible.")
-
-
-    
-    # 3. WHOIS & Domaine
-    pdf.section_title("3. WHOIS & Domaine")
-    who = vt.get("whois", {})
-    pdf.section_text(f"Registrar    : {who.get('registrar','N/A')}")
-    pdf.section_text(f"Création     : {who.get('creation_date','N/A')}")
-    pdf.section_text(f"Expiration   : {who.get('expiration_date','N/A')}")
-
-    # 4. Certificat SSL/TLS
-    pdf.section_title("4. Certificat SSL/TLS")
-    cert = fetch_certificate_info(ent)
-    pdf.section_text(f"Émetteur    : {cert['issuer']}")
-    pdf.section_text(f"Sujet       : {cert['subject']}")
-    pdf.section_text(f"Valide du   : {cert['not_before']}")
-    pdf.section_text(f"au          : {cert['not_after']}")
-
-    # 5. Headers HTTP
-    pdf.section_title("5. Headers HTTP")
-    hdr = fetch_http_headers(ent)
-    if hdr:
-        for k in ['Server','X-Frame-Options','Strict-Transport-Security','Content-Security-Policy']:
-            v = hdr.get(k)
-            if v:
-                pdf.section_text(f"{k}: {v}")
-    else:
-        pdf.section_text("Aucun header HTTP récupéré.")
-
-   # 6. Emails détectés
-    pdf.section_title("6. Emails détectés")
-
-    if emails:
-        for idx, e in enumerate(emails, 1):
-            pdf.subsection_title(f"{idx}. {e.get('email', 'Inconnu')} ({e.get('confidence', 'N/C')}%)")
-
-            # Source(s) et domaines
-            sources = e.get("sources") or e.get("source") or []
-            if isinstance(sources, list):
-                domaines = [s.get("domain") for s in sources if isinstance(s, dict) and s.get("domain")]
-                urls = [s.get("uri") for s in sources if isinstance(s, dict) and s.get("uri")]
-                full_sources = [f"- {d} ({u})" for d, u in zip(domaines, urls)]
-                if full_sources:
-                    pdf.section_text("Sources :\n" + "\n".join(full_sources))
-                else:
-                    pdf.section_text("Sources : Hunter.io")
-            elif isinstance(sources, str):
-                pdf.section_text(f"Source : {sources}")
-
-            # SPF
-            spf = e.get("SPF")
-            if spf:
-                pdf.section_text(f"SPF : {spf}")
-
-            # DKIM
-            dkim = e.get("DKIM")
-            if isinstance(dkim, dict):
-                dkim_lines = [f"{k}: {v}" for k, v in dkim.items()]
-                pdf.section_text("DKIM :\n" + "\n".join(dkim_lines))
-            elif isinstance(dkim, str):
-                pdf.section_text(f"DKIM : {dkim}")
-
-            pdf.ln(1)  # espace entre les emails
-    else:
-        pdf.section_text("Aucun email détecté.")
-
-     # 7. Résultat theHarvester
-    pdf.section_title("7. Résultat theHarvester")
-    harvest = resultats["resultats"].get("osint", {})
-    texte = harvest.get("texte", "").strip()
-    if texte:
-        contenu = clean_osint_text(texte)
-        if contenu:
-            pdf.section_text(contenu)
-        else:
-            pdf.section_text("Aucun champ intéressant extrait.")
-    else:
-        pdf.section_text("Aucune donnée récupérée depuis theHarvester.")
-    
-    # 8. DNS Records
-    pdf.section_title("8. DNS Records")
-    for idx, (k, vals) in enumerate(dns.items(), 1):
-        vals_str = ', '.join(vals) if isinstance(vals,(list,tuple)) else vals
-        pdf.section_text(f"{idx}. {k}: {vals_str}")
-
-    # 9. Scans IP
-    pdf.section_title("9. Scans IP")
+    # 11. Scans IP
+    pdf.section_title("11. Scans IP")
     for idx, (ip, data) in enumerate(ips.items(), 1):
         pdf.subsection_title(f"{idx}. {ip}")
         pdf.section_text(data.get("nmap","").strip() or "Pas de résultat Nmap.")
 
-    # 10. Ports détectés
-    pdf.section_title("10. Ports détectés")
+    # 12. Ports détectés
+    pdf.section_title("12. Ports détectés")
     chart = generate_ports_chart(ips, output_dir, siren)
     if chart:
         pdf.add_image(chart, w=160)
     else:
         pdf.section_text("Aucun port détecté.")
 
-    # 11. Analyse de sécurité VirusTotal
-    pdf.section_title("11. Analyse de sécurité VirusTotal")
 
-    pie = generate_vt_pie_chart(stats, output_dir, siren)
-    if pie:
-        pdf.add_image(pie, w=120)
-
-        results = vt.get("results", {})  # Détails par moteur
-        malicious_engines = [k for k, v in results.items() if v.get("category") == "malicious"]
-        suspicious_engines = [k for k, v in results.items() if v.get("category") == "suspicious"]
-        harmless_engines   = [k for k, v in results.items() if v.get("category") == "harmless"]
-
-        # Analyse texte
-        if malicious_engines:
-            pdf.section_text("Menaces détectées : Certains moteurs ont détecté le domaine comme malveillant.")
-            pdf.section_text(f"  - {len(malicious_engines)} moteur(s) concerné(s) :")
-            for e in malicious_engines:
-                label = results[e].get("result") or "Risque détecté"
-                pdf.section_text(f"     - {e}: {label}")
-
-        if suspicious_engines:
-            pdf.section_text("Comportements suspects : Certains moteurs trouvent ce domaine suspect.")
-            pdf.section_text(f"  - {len(suspicious_engines)} moteur(s) concerné(s) :")
-            for e in suspicious_engines:
-                label = results[e].get("result") or "Comportement suspect"
-                pdf.section_text(f"     - {e}: {label}")
-
-        if harmless_engines and not malicious_engines and not suspicious_engines:
-            pdf.section_text("Aucune menace détectée : Tous les moteurs ont classé ce domaine comme sûr.")
-
-        total = sum(stats.values())
-        pdf.section_text(f"\nNombre total d'antivirus analysés : {total}")
-
-        reputation = vt.get("reputation", 0)
-        if reputation > 0:
-            pdf.section_text(f"Réputation générale : Bonne ({reputation})")
-        elif reputation < 0:
-            pdf.section_text(f"Réputation générale : Mauvaise ({reputation})")
-        else:
-            pdf.section_text(f"Réputation générale : Neutre ({reputation})")
-
-    else:
-        pdf.section_text("Aucune donnée VirusTotal disponible pour ce domaine.")
-
-    # 12. Scraping site web
-    pdf.section_title("12. Scraping site web")
-    categories = [
-        ("Emails trouvés",         scrap.get("emails", [])),
-        ("Téléphones trouvés",     phones),
-        ("Adresses postales",      scrap.get("addresses", [])),
-        ("Noms / Prénoms trouvés", scrap.get("names", [])),
-        ("Réseaux sociaux trouvés", socials),
-    ]
-
-    for num, (label, items) in enumerate(categories, 1):
-        pdf.subsection_title(f"{num}. {label}")
-        if items:
-            for j, entry in enumerate(items, 1):
-                pdf.section_text(f"{j}. {entry}")
-        else:
-            pdf.section_text(f"Aucun {label.lower()}.")
-
-    # Enregistrement
+# Enregistrement
     os.makedirs(output_dir, exist_ok=True)
     out = os.path.join(output_dir, f"diag_{siren}.pdf")
     pdf.output(out)
-    print(f"Rapport PDF généré : {out}")
+    print(f" Rapport PDF généré : {out}")
