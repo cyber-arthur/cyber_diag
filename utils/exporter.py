@@ -223,7 +223,7 @@ def export_pdf(grouped_results: list[tuple[str, dict]], siren: str, output_dir: 
         "Résultat theHarvester",
         "DNS Records",
         "Diagramme VirusTotal",
-        "Informations sur l'entreprise",
+        "Informations à partir du SIREN",
         "Scans IP",
         "Ports détectés"
     ]
@@ -422,8 +422,8 @@ def export_pdf(grouped_results: list[tuple[str, dict]], siren: str, output_dir: 
                 
     pdf.add_page()
 
-    # 10. Informations sur l'entreprise
-    pdf.section_title("10. Informations sur l'entreprise")
+    # 10. Informations à partir du SIREN
+    pdf.section_title("10. Informations à partir du SIREN")
     pappers = resultats.get("pappers", {})
     siege = pappers.get("siege", {})
     def maybe(txt, val): return f"{txt}{val}" if val else None

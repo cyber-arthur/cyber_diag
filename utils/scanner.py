@@ -13,17 +13,17 @@ def run_command(cmd: str) -> tuple[str, str]:
     except Exception as e:
         return "", str(e)
 
-# ================= Nmap scan sur top 1500 ports =================
+# ================= Nmap scan sur ports 1 à 10000 =================
 def nmap_scan(ip: str) -> str:
     """
     Scan Nmap en deux phases :
-    1) top 5000 ports (--top-ports 5000), sans DNS ni ping, format grepable
+    1) scan ports 1-10000 (-p 1-10000), sans DNS ni ping, format grepable
     2) scan de version (-sV) uniquement sur les ports ouverts détectés
     """
-    # Phase 1 : détection rapide
+    # Phase 1 : détection large
     fast_cmd = (
-        f"nmap -T4 -Pn -n --top-ports 5000 "
-        f"--max-retries 1 --host-timeout 60s "
+        f"nmap -T4 -Pn -n -p 1-10000 "
+        f"--max-retries 1 --host-timeout 90s "
         f"{ip} -oG -"
     )
     out_fast, err_fast = run_command(fast_cmd)
@@ -46,7 +46,7 @@ def nmap_scan(ip: str) -> str:
         ports_str = ",".join(open_ports)
         ver_cmd = (
             f"nmap -T4 -Pn -n -sV "
-            f"--max-retries 1 --host-timeout 90s "
+            f"--max-retries 1 --host-timeout 120s "
             f"-p {ports_str} {ip}"
         )
         out_ver, err_ver = run_command(ver_cmd)
