@@ -22,24 +22,35 @@ TIMEZONE        = "Europe/Paris"
 
 def fetch_certificate_info(domain: str) -> dict:
     """Récupère et aplatit le certificat TLS du domaine."""
-    ctx = ssl.create_default_context()
-    with ctx.wrap_socket(socket.socket(), server_hostname=domain) as s:
-        s.settimeout(5)
-        s.connect((domain, 443))
-        cert = s.getpeercert()
-    issuer, subject = {}, {}
-    for rdn in cert.get('issuer', []):
-        for k, v in rdn:
-            issuer[k] = v
-    for rdn in cert.get('subject', []):
-        for k, v in rdn:
-            subject[k] = v
-    return {
-        'issuer':     issuer.get('organizationName') or issuer.get('O') or 'N/A',
-        'subject':    subject.get('commonName')      or subject.get('CN') or 'N/A',
-        'not_before': cert.get('notBefore', 'N/A'),
-        'not_after':  cert.get('notAfter',  'N/A')
-    }
+    try:
+        ctx = ssl.create_default_context()
+        with ctx.wrap_socket(socket.socket(), server_hostname=domain) as s:
+            s.settimeout(5)  # 5 secondes de timeout
+            s.connect((domain, 443))
+            cert = s.getpeercert()
+
+        issuer, subject = {}, {}
+        for rdn in cert.get('issuer', []):
+            for k, v in rdn:
+                issuer[k] = v
+        for rdn in cert.get('subject', []):
+            for k, v in rdn:
+                subject[k] = v
+        return {
+            'issuer':     issuer.get('organizationName') or issuer.get('O') or 'N/A',
+            'subject':    subject.get('commonName')      or subject.get('CN') or 'N/A',
+            'not_before': cert.get('notBefore', 'N/A'),
+            'not_after':  cert.get('notAfter',  'N/A')
+        }
+
+    except Exception as e:
+        return {
+            'issuer':     f"Erreur SSL ({type(e).__name__})",
+            'subject':    domain,
+            'not_before': 'N/A',
+            'not_after':  'N/A'
+        }
+
 
 def fetch_http_headers(domain: str) -> dict:
     """HEAD request pour récupérer les headers HTTP principaux."""
@@ -138,22 +149,18 @@ def generate_vt_pie_chart(stats: dict, output_dir: str, siren: str, domain: str)
 class PDF(FPDF):
     def __init__(self):
         super().__init__(orientation='P', unit='mm', format='A4')
-        self.add_font("DejaVu", "", "../fonts/DejaVuSans.ttf", uni=True)
-        self.add_font("DejaVu", "B", "../fonts/DejaVuSans-Bold.ttf", uni=True)
-        self.add_font("DejaVu", "I", "../fonts/DejaVuSans-Oblique.ttf", uni=True)
-        self.set_font("DejaVu", "", 10)
         self.set_auto_page_break(auto=True, margin=15)
         self.set_title("Rapport de Diagnostic Cybersécurité")
         self.set_author("Cyber SES")
 
     def sanitize(self, t: str) -> str:
-        return t or ""
+        return t.encode('latin-1', 'replace').decode('latin-1')
 
     def header(self):
         if self.page_no() > 2:
-            self.set_font("DejaVu", "B", 12)
+            self.set_font(FONT_FAMILY, 'B', 12)
             self.set_text_color(*CORPORATE_COLOR)
-            self.cell(0, 6, "Cyber SES Sécurisation TPE/PME", ln=1, align='R')
+            self.cell(0, 6, self.sanitize("Cyber SES Sécurisation TPE/PME"), ln=1, align='R')
             y = self.get_y()
             self.set_draw_color(*CORPORATE_COLOR)
             self.line(10, y, self.w-10, y)
@@ -162,46 +169,45 @@ class PDF(FPDF):
     def footer(self):
         if self.page_no() > 2:
             self.set_y(-15)
-            self.set_font("DejaVu", "", 8)
+            self.set_font(FONT_FAMILY, '', 8)
             self.set_text_color(128)
-            self.cell(0, 10, f"Page {self.page_no()}", align='C')
+            self.cell(0, 10, self.sanitize(f"Page {self.page_no()}"), align='C')
 
     def toc_page(self, sections: list):
         self.add_page()
-        self.set_font("DejaVu", "B", 18)
+        self.set_font(FONT_FAMILY, 'B', 18)
         self.set_text_color(*CORPORATE_COLOR)
-        self.cell(0, 10, "Table des matières", ln=1, align='C')
+        self.cell(0, 10, self.sanitize("Table des matières"), ln=1, align='C')
         self.ln(4)
-        self.set_font("DejaVu", "", 12)
+        self.set_font(FONT_FAMILY, '', 12)
         self.set_text_color(0)
         for i, sec in enumerate(sections, 1):
-            self.cell(0, 8, f"{i}. {sec}", ln=1)
+            self.cell(0, 8, self.sanitize(f"{i}. {sec}"), ln=1)
         self.ln(2)
 
     def section_title(self, title: str):
         self.ln(4)
-        self.set_font("DejaVu", "B", 14)
+        self.set_font(FONT_FAMILY, 'B', 14)
         self.set_text_color(*CORPORATE_COLOR)
-        self.cell(0, 8, title, ln=1)
+        self.cell(0, 8, self.sanitize(title), ln=1)
         self.set_text_color(0)
 
     def subsection_title(self, title: str):
-        self.set_font("DejaVu", "B", 12)
+        self.set_font(FONT_FAMILY, 'B', 12)
         self.set_text_color(80)
         self.ln(2)
-        self.cell(0, 6, title, ln=1)
+        self.cell(0, 6, self.sanitize(title), ln=1)
         self.set_text_color(0)
 
     def section_text(self, text: str):
-        self.set_font("DejaVu", "", 10)
-        self.multi_cell(0, 5, text)
+        self.set_font(FONT_FAMILY, '', 10)
+        self.multi_cell(0, 5, self.sanitize(text))
         self.ln(1)
 
-    def add_image(self, img_path: str, w: int = 100):
+    def add_image(self, img_path: str, w: int=100):
         if os.path.exists(img_path):
             self.image(img_path, w=w)
             self.ln(5)
-
 
 # ================== Export PDF ==================
 
@@ -209,15 +215,15 @@ def export_pdf(grouped_results: list[tuple[str, dict]], siren: str, output_dir: 
     pdf = PDF()
     sections = [
         "Résumé",
-        "Informations sur l'entreprise",
         "WHOIS & Domaine",
         "Certificat SSL/TLS",
         "Headers HTTP",
+        "Scraping site web",
         "Emails détectés",
         "Résultat theHarvester",
         "DNS Records",
         "Diagramme VirusTotal",
-        "Scraping site web",
+        "Informations sur l'entreprise",
         "Scans IP",
         "Ports détectés"
     ]
@@ -261,108 +267,23 @@ def export_pdf(grouped_results: list[tuple[str, dict]], siren: str, output_dir: 
             f"réputation VT = {reputation}."
         )
 
-
-        # 2. Informations sur l'entreprise
-        pdf.section_title("2. Informations sur l'entreprise")
-        pappers = resultats.get("pappers", {})
-        siege = pappers.get("siege", {})
-
-
-        def maybe(txt, val): return f"{txt}{val}" if val else None
-
-        lignes = [
-            maybe("Forme juridique : ", pappers.get("forme_juridique")),
-            maybe("Catégorie entreprise : ", pappers.get("categorie_entreprise")),
-            maybe("Exercice : ", pappers.get("forme_exercice")),
-            maybe("Capital social : ", f"{pappers.get('capital')} €" if pappers.get("capital") else None),
-            maybe("Date immatriculation : ", pappers.get("date_creation_formate")),
-            maybe("Activité : ", f"{pappers.get('naf')} — {pappers.get('libelle_naf')}"),
-            maybe("Objet social : ", pappers.get("objet_social")),
-            maybe("Statut RCS : ", pappers.get("statut_rcs")),
-            maybe("Greffe : ", pappers.get("greffe")),
-            maybe("N° RCS : ", pappers.get("numero_rcs")),
-            maybe("Date immatriculation RCS : ", pappers.get("date_immatriculation_rcs")),
-            maybe("TVA intracommunautaire : ", pappers.get("numero_tva_intracommunautaire")),
-            maybe("Tranche d'effectif : ", pappers.get("tranche_effectif")),
-            maybe("Effectif (estimé) : ", pappers.get("effectif")),
-            maybe("Date clôture exercice : ", pappers.get("date_cloture_exercice")),
-            maybe("Prochaine clôture prévue : ", pappers.get("prochaine_date_cloture_exercice_formate")),
-            maybe("Site Web : ", pappers.get("site_web")),
-            maybe("Téléphone : ", pappers.get("telephone"))
-        ]
-
-        adresse = " ".join(
-            str(s) for s in filter(None, [
-                siege.get("numero_voie"),
-                siege.get("type_voie"),
-                siege.get("libelle_voie"),
-                siege.get("code_postal"),
-                siege.get("ville")
-            ])
-        )
-        if adresse.strip():
-            lignes.append("Adresse siège : " + adresse)
-
-        if siege.get("complement_adresse"):
-            lignes.append(f"Complément d’adresse : {siege['complement_adresse']}")
-
-        if siege.get("latitude") and siege.get("longitude"):
-            lignes.append(f"Coordonnées GPS : {siege['latitude']}, {siege['longitude']}")
-
-        if pappers.get("dernier_traitement"):
-            lignes.append("Dernière mise à jour : " + pappers["dernier_traitement"])
-
-        # Convention collective
-        conventions = pappers.get("conventions_collectives", [])
-        for conv in conventions:
-            nom = conv.get("nom")
-            if nom:
-                lignes.append("Convention collective : " + nom)
-
-        # Dirigeants
-        dirigeants = pappers.get("dirigeants") or pappers.get("representants") or []
-        if dirigeants:
-            lignes.append("Dirigeants :")
-            for d in dirigeants:
-                nom = d.get("nom", "")
-                prenom = d.get("prenom", "")
-                qualite = d.get("qualite") or d.get("fonction") or ""
-                date = d.get("date_debut_mandat")
-                ligne = f"  - {prenom} {nom} ({qualite})"
-                if date:
-                    ligne += f" — depuis {date}"
-                lignes.append(ligne)
-
-        # Statuts déposés
-        statuts = pappers.get("derniers_statuts")
-        if statuts and statuts.get("date_depot_formate"):
-            lignes.append("Derniers statuts déposés : " + statuts["date_depot_formate"])
-
-        # Affichage
-        if lignes:
-            for l in lignes:
-                if l:
-                    pdf.section_text(l)
-        else:
-            pdf.section_text("Aucune information d'entreprise disponible.")
-
-        # 3. WHOIS & Domaine
-        pdf.section_title("3. WHOIS & Domaine")
+        # 2. WHOIS & Domaine
+        pdf.section_title("2. WHOIS & Domaine")
         who = vt.get("whois", {})
         pdf.section_text(f"Registrar    : {who.get('registrar','N/A')}")
         pdf.section_text(f"Création     : {who.get('creation_date','N/A')}")
         pdf.section_text(f"Expiration   : {who.get('expiration_date','N/A')}")
 
-        # 4. Certificat SSL/TLS
-        pdf.section_title("4. Certificat SSL/TLS")
+        # 3. Certificat SSL/TLS
+        pdf.section_title("3. Certificat SSL/TLS")
         cert = fetch_certificate_info(ent)
         pdf.section_text(f"Émetteur    : {cert['issuer']}")
         pdf.section_text(f"Sujet       : {cert['subject']}")
         pdf.section_text(f"Valide du   : {cert['not_before']}")
         pdf.section_text(f"au          : {cert['not_after']}")
 
-        # 5. Headers HTTP
-        pdf.section_title("5. Headers HTTP")
+        # 4. Headers HTTP
+        pdf.section_title("4. Headers HTTP")
         hdr = fetch_http_headers(ent)
         if hdr:
             for k in ['Server','X-Frame-Options','Strict-Transport-Security','Content-Security-Policy']:
@@ -371,9 +292,27 @@ def export_pdf(grouped_results: list[tuple[str, dict]], siren: str, output_dir: 
                     pdf.section_text(f"{k}: {v}")
         else:
             pdf.section_text("Aucun header HTTP récupéré.")
+        
+        # 5. Scraping site web
+        pdf.section_title("5. Scraping site web")
+        categories = [
+            ("Emails trouvés",         scrap.get("emails", [])),
+            ("Téléphones trouvés",     phones),
+            ("Adresses postales",      scrap.get("addresses", [])),
+            ("Noms / Prénoms trouvés", scrap.get("names", [])),
+            ("Réseaux sociaux trouvés", socials),
+        ]
 
-        # 6. Emails détectés
-        pdf.section_title("6. Emails détectés")
+        for num, (label, items) in enumerate(categories, 1):
+            pdf.subsection_title(f"{num}. {label}")
+            if items:
+                for j, entry in enumerate(items, 1):
+                    pdf.section_text(f"{j}. {entry}")
+            else:
+                pdf.section_text(f"Aucun {label.lower()}.")
+        
+        # 6. Analyse des emails
+        pdf.section_title("6. Analyse des emails")
 
         if emails:
             for idx, e in enumerate(emails, 1):
@@ -480,25 +419,81 @@ def export_pdf(grouped_results: list[tuple[str, dict]], siren: str, output_dir: 
         else:
             pdf.section_text("Aucune donnée VirusTotal disponible pour ce domaine.")
 
-        # 10. Scraping site web
-        pdf.section_title("10. Scraping site web")
-        categories = [
-            ("Emails trouvés",         scrap.get("emails", [])),
-            ("Téléphones trouvés",     phones),
-            ("Adresses postales",      scrap.get("addresses", [])),
-            ("Noms / Prénoms trouvés", scrap.get("names", [])),
-            ("Réseaux sociaux trouvés", socials),
-        ]
-
-        for num, (label, items) in enumerate(categories, 1):
-            pdf.subsection_title(f"{num}. {label}")
-            if items:
-                for j, entry in enumerate(items, 1):
-                    pdf.section_text(f"{j}. {entry}")
-            else:
-                pdf.section_text(f"Aucun {label.lower()}.")
                 
     pdf.add_page()
+
+    # 10. Informations sur l'entreprise
+    pdf.section_title("10. Informations sur l'entreprise")
+    pappers = resultats.get("pappers", {})
+    siege = pappers.get("siege", {})
+    def maybe(txt, val): return f"{txt}{val}" if val else None
+    lignes = [
+        maybe("Forme juridique : ", pappers.get("forme_juridique")),
+        maybe("Catégorie entreprise : ", pappers.get("categorie_entreprise")),
+        maybe("Exercice : ", pappers.get("forme_exercice")),
+        maybe("Capital social : ", f"{pappers.get('capital')} €" if pappers.get("capital") else None),
+        maybe("Date immatriculation : ", pappers.get("date_creation_formate")),
+        maybe("Activité : ", f"{pappers.get('naf')} — {pappers.get('libelle_naf')}"),
+        maybe("Objet social : ", pappers.get("objet_social")),
+        maybe("Statut RCS : ", pappers.get("statut_rcs")),
+        maybe("Greffe : ", pappers.get("greffe")),
+        maybe("N° RCS : ", pappers.get("numero_rcs")),
+        maybe("Date immatriculation RCS : ", pappers.get("date_immatriculation_rcs")),
+        maybe("TVA intracommunautaire : ", pappers.get("numero_tva_intracommunautaire")),
+        maybe("Tranche d'effectif : ", pappers.get("tranche_effectif")),
+        maybe("Effectif (estimé) : ", pappers.get("effectif")),
+        maybe("Date clôture exercice : ", pappers.get("date_cloture_exercice")),
+        maybe("Prochaine clôture prévue : ", pappers.get("prochaine_date_cloture_exercice_formate")),
+        maybe("Site Web : ", pappers.get("site_web")),
+        maybe("Téléphone : ", pappers.get("telephone"))
+    ]
+    adresse = " ".join(
+        str(s) for s in filter(None, [
+            siege.get("numero_voie"),
+            siege.get("type_voie"),
+            siege.get("libelle_voie"),
+            siege.get("code_postal"),
+            siege.get("ville")
+        ])
+    )
+    if adresse.strip():
+        lignes.append("Adresse siège : " + adresse)
+    if siege.get("complement_adresse"):
+        lignes.append(f"Complément d’adresse : {siege['complement_adresse']}")
+    if siege.get("latitude") and siege.get("longitude"):
+        lignes.append(f"Coordonnées GPS : {siege['latitude']}, {siege['longitude']}")
+    if pappers.get("dernier_traitement"):
+        lignes.append("Dernière mise à jour : " + pappers["dernier_traitement"])
+    # Convention collective
+    conventions = pappers.get("conventions_collectives", [])
+    for conv in conventions:
+        nom = conv.get("nom")
+        if nom:
+            lignes.append("Convention collective : " + nom)
+    # Dirigeants
+    dirigeants = pappers.get("dirigeants") or pappers.get("representants") or []
+    if dirigeants:
+        lignes.append("Dirigeants :")
+        for d in dirigeants:
+            nom = d.get("nom", "")
+            prenom = d.get("prenom", "")
+            qualite = d.get("qualite") or d.get("fonction") or ""
+            date = d.get("date_debut_mandat")
+            ligne = f"  - {prenom} {nom} ({qualite})"
+            if date:
+                ligne += f" — depuis {date}"
+            lignes.append(ligne)
+    # Statuts déposés
+    statuts = pappers.get("derniers_statuts")
+    if statuts and statuts.get("date_depot_formate"):
+        lignes.append("Derniers statuts déposés : " + statuts["date_depot_formate"])
+    # Affichage
+    if lignes:
+        for l in lignes:
+            if l:
+                pdf.section_text(l)
+    else:
+        pdf.section_text("Aucune information d'entreprise disponible.")
 
     # 11. Scans IP
     pdf.section_title("11. Scans IP")
