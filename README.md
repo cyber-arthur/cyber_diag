@@ -112,9 +112,11 @@ Créez un fichier `.env` à la racine du dossier :
 HUNTER_API_KEY=VotreCleHunter
 VT_API_KEY=VotreCleVirusTotal
 PAPPERS_API_KEY=VotreClePappers
+URLSCAN_API_KEY=VotreCleUrlScan
+
 ```
 
-> ⚠️ L’absence de `VT_API_KEY` ET `PAPPERS_API_KEY` empêche le script de s’exécuter.
+> ⚠️ L’absence des clés d'API empêche le script de s’exécuter.
 
 ---
 
@@ -137,9 +139,9 @@ python main.py \
 
 **Paramètres :**
 
-* `--nom` : le nom de domaine à auditer
+* `--nom` : le(s) nom(s) de domaine à auditer
 * `--siren` : le numéro SIREN (généré automatiquement si non fourni)
-* `--ips` : adresses IP publiques (par défaut : `8.8.8.8`)
+* `--ips` : adresses IP publiques (sinon aucun scan)
 
 ### 3. Résultats dans `rapports/` :
 
@@ -164,6 +166,7 @@ CYBER_DIAG/
    ├─ osint.py             # theHarvester (wrapper)
    ├─ osint_advanced.py    # VirusTotal (API v3)
    ├─ scanner.py           # Nmap
+   ├─ pappers.py           # Pappers (SIREN)
    └─ scraper.py           # Crawling & extraction
 ```
 
@@ -197,10 +200,9 @@ Contact : [arthur.nguyen@cyberses.fr](mailto:arthur.nguyen@cyberses.fr)
 
 ---
 
-> *Dernière mise à jour :* **juin 2025**
+> *Dernière mise à jour :* **juillet 2025**
 > *Fuseau horaire du rapport PDF :* **Europe/Paris**
 > *Format de date/heure :* `%d %B %Y %H:%M %Z`
-> *Police corporate :* **Helvetica**
 > *Couleur principale :* `#003366`
 
 ---
