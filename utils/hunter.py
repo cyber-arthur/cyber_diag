@@ -79,10 +79,10 @@ def enrich_emails(emails: list[str]) -> list[dict]:
                     "La boite mail semble être une suite de lettres aléatoires, donc probablement fausse": data.get("gibberish"),
                     "La boite mail utilise un service temporaire, souvent peu fiable.": data.get("disposable"),
                     "La boite mail utilise un fournisseur public (Gmail, Yahoo, etc.)": data.get("webmail"),
-                    "Le domaine de l’adresse peut techniquement recevoir des emails.": data.get("mx_records"),
+                    "Le domaine de la boite mail peut techniquement recevoir des emails.": data.get("mx_records"),
                     "Le serveur d'envoi/réception de mails est joignable.": data.get("smtp_server"),
-                    "Le serveur a bien confirmé que l’adresse email existe réellement.": data.get("smtp_check"),
-                    "Le serveur accepte tous les emails, donc impossible de confirmer l’existence réelle.": data.get("accept_all")
+                    "Le serveur a bien confirmé que la boite mail existe réellement.": data.get("smtp_check"),
+                    "Le serveur accepte tous les emails, donc impossible de confirmer son existence réelle.": data.get("accept_all")
                 },
                 "whois": None
             }
